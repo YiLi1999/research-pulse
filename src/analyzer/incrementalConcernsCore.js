@@ -74,7 +74,7 @@ export async function analyzeIncrementalConcerns(prepared, { chat, cachedNotes =
   }));
   if (failure) throw failure;
   let groups = prepared.papers.flatMap(p => (notes.get(p.ref) || []).map(note => ({ ...note, paperIds: [p.ref] })));
-  let summary = '', round = 0;
+  let summary = '', round = 0, limitedQuestions = false;
   if (prepared.papers.length > 1 && groups.length) {
     // Bound the synthesis prompt even when thousands of individual paper notes are cached.
     do {
@@ -93,12 +93,15 @@ export async function analyzeIncrementalConcerns(prepared, { chat, cachedNotes =
         let validated;
         try {
           validated = validateGroups(result, new Set(candidates.map(c => c.id)), 'groupIds', { allowEmpty: true });
-          if (validated.length > 10) throw new Error('问题数量超过10个。');
         } catch (error) {
           throw Object.assign(new Error(`AI 汇总结果格式不符合要求：${error.message} 请重试汇总。`), { code: 'synthesis-format' });
         }
-        merged.push(...validated.map(group => ({ question: group.question, focus: group.focus,
-          paperIds: [...new Set(group.groupIds.flatMap(id => chunk[Number(id.slice(1)) - 1].paperIds))] })));
+        // Validate every returned item before selecting a bounded result locally.
+        // Rank by unique papers, not group IDs, which can share the same evidence.
+        const supported = validated.map(group => ({ question: group.question, focus: group.focus,
+          paperIds: [...new Set(group.groupIds.flatMap(id => chunk[Number(id.slice(1)) - 1].paperIds))] }));
+        if (supported.length > 10) limitedQuestions = true;
+        merged.push(...supported.sort((a, b) => b.paperIds.length - a.paperIds.length).slice(0, 10));
         if (chunks.length === 1) summary = typeof result.summary === 'string' ? result.summary.slice(0, 3000) : '';
         progress('synthesizing', { mergeRound: round, mergeCompleted: chunks.indexOf(chunk) + 1, mergeTotal: chunks.length });
       }
@@ -110,6 +113,7 @@ export async function analyzeIncrementalConcerns(prepared, { chat, cachedNotes =
     } while (groups.length);
   }
   const warnings = [
+    limitedQuestions ? '模型返回了较多问题，已按依据论文数筛选，最终展示最多10个问题；筛选没有额外调用 API。' : '',
     !groups.length && prepared.papers.length ? 'AI 未从已有逐篇分析中归纳出足够有依据的问题；可调整范围或再次汇总。已保存的逐篇缓存仍可复用。' : '',
     unsaved ? `${unsaved} 篇逐篇结果未能保存到本机；下次可能需要重新分析。` : ''
   ];

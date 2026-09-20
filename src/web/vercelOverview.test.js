@@ -171,7 +171,7 @@ test('Vercel browser: own API, IndexedDB cache, scope reuse and isolated visitor
   assert.deepEqual(errors, []); assert.deepEqual(second.errors, []);
 });
 
-test('Vercel browser: malformed synthesis shows an error and a manual retry reuses saved paper notes', { timeout: 60000 }, async t => {
+test('Vercel browser: malformed synthesis preserves notes and an oversized retry succeeds without extra calls', { timeout: 60000 }, async t => {
   const requests = [];
   let synthesisCalls = 0;
   const { newPage } = await setup(t, (request, response) => {
@@ -181,7 +181,11 @@ test('Vercel browser: malformed synthesis shows an error and a manual retry reus
       response.json({ result: { summary: 'This response deliberately omits the required questions array.' } });
       return;
     }
-    response.json({ result: modelAnswer(request.body) });
+    const result = modelAnswer(request.body);
+    if (input.candidates) result.questions = Array.from({ length: 15 }, (_, index) => ({
+      ...result.questions[0], question: `问题 ${index + 1}：如何提高实验与计算精度？`
+    }));
+    response.json({ result });
   });
   const { page, errors } = await newPage();
   await page.locator('.field-card[data-field="quantum"]').click();
@@ -213,7 +217,8 @@ test('Vercel browser: malformed synthesis shows an error and a manual retry reus
   assert.equal(requests.filter(body => JSON.parse(body.messages.at(-1).content).papers).length, 1);
   assert.equal(synthesisCalls, 2);
   assert.ok((await page.locator('#questions').innerText()).includes('复用 2 篇 · 新分析 0 篇'));
-  assert.equal(await page.locator('#questions .concern-question').count(), 1);
+  assert.equal(await page.locator('#questions .concern-question').count(), 10);
+  assert.match(await page.locator('#questions').innerText(), /筛选没有额外调用 API/);
   const afterRetry = await storageContents(page);
   assert.deepEqual(afterRetry.records.filter(row => row.key.startsWith('paper:')), savedNotes);
   assert.equal(afterRetry.records.filter(row => row.key.startsWith('report:')).length, 1);

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { prepareConcerns } from './concernAnalyzer.js';
 import { analyzeIncrementalConcerns } from './incrementalConcernsCore.js';
 
-test('synthesis converges with maximum-length text and overlapping evidence across 1001 cached papers', async () => {
+for (const returnedCount of [10, 15]) {
+test(`synthesis converges across 1001 cached papers when each reply contains ${returnedCount} overlapping groups`, async () => {
   const prepared = prepareConcerns(Array.from({ length: 1001 }, (_, index) => ({
     id: `paper-${index}`, title: `Quantum computing study ${index}`,
     abstract: 'Quantum error correction and logical gates.', date: '2026-09-20'
@@ -32,13 +33,15 @@ test('synthesis converges with maximum-length text and overlapping evidence acro
       assert.ok(input.candidates.every(candidate => !Object.hasOwn(candidate, 'paperIds')),
         'large evidence lists are retained locally rather than sent to the model');
       return { summary: 'All questions intentionally share the available supporting papers.',
-        questions: Array.from({ length: 10 }, (_, index) => ({
-          question: `${index}:${'q'.repeat(298)}`, focus: 'f'.repeat(1600),
+        questions: Array.from({ length: returnedCount }, (_, index) => ({
+          question: `${String(index).padStart(2, '0')}:${'q'.repeat(297)}`, focus: 'f'.repeat(1600),
           groupIds: input.candidates.map(candidate => candidate.id)
         })) };
     }
   });
   assert.ok(calls < 100);
+  assert.equal(calls, rounds.reduce((total, batches) => total + batches, 0),
+    'each planned chunk makes exactly one request; local selection does not make repair calls');
   assert.ok(rounds.length > 1, 'the fixture exercises several merge rounds');
   assert.equal(rounds.at(-1), 1);
   for (let index = 1; index < rounds.length; index++) {
@@ -47,6 +50,13 @@ test('synthesis converges with maximum-length text and overlapping evidence acro
   assert.deepEqual(report.incremental, { cached: 1001, analyzed: 0, total: 1001, unsaved: 0 });
   assert.equal(report.coverage.supportedCount, 1001);
   assert.equal(report.questions.length, 10);
+  assert.deepEqual(report.questions.map(question => question.question.slice(0, 3)),
+    Array.from({ length: 10 }, (_, index) => `${String(index).padStart(2, '0')}:`),
+    'equally supported groups retain their original order when limited to ten');
+  if (returnedCount > 10) {
+    assert.match(report.warning, /最多10个/);
+    assert.match(report.warning, /没有额外调用 API/);
+  } else assert.equal(report.warning, '');
   const expectedIds = prepared.papers.map(paper => paper.id).sort();
   for (const question of report.questions) {
     assert.equal(question.count, 1001);
@@ -55,3 +65,4 @@ test('synthesis converges with maximum-length text and overlapping evidence acro
       'overlapping evidence is deduplicated without losing or inventing original papers');
   }
 });
+}
