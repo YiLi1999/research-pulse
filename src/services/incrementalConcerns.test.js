@@ -96,6 +96,29 @@ test('merge failure keeps all notes, and corrupt notes are reread instead of reu
   assert.equal((await complete(f.service)).incremental.analyzed, 1);
 });
 
+test('an inconclusive synthesis stays retryable and reuses disk paper notes after restart', async t => {
+  let empty = true;
+  const f = await fixture(t, [paper('one'), paper('two')], messages => {
+    if (JSON.parse(messages.at(-1).content).candidates && empty) return { summary: '依据不足。', questions: [] };
+    return answer(messages);
+  });
+  const report = await complete(f.service);
+  assert.equal(report.mode, 'llm');
+  assert.deepEqual(report.questions, []);
+  assert.equal(report.coverage.supportedCount, 0);
+  assert.ok(report.warning);
+  const restarted = createConcernService(f.settings);
+  const options = await restarted.getOptions({});
+  assert.equal(options.report, null);
+  assert.deepEqual(options.incremental, { cached: 2, pending: 0, total: 2 });
+  f.calls.length = 0; empty = false;
+  const retried = await complete(restarted);
+  assert.equal(retried.questions[0].count, 2);
+  assert.equal(retried.incremental.analyzed, 0);
+  assert.equal(f.calls.length, 1);
+  assert.equal(f.calls[0].mode, 'question-synthesis');
+});
+
 test('field counts need no AI engine and keep quantum information and metrology separately selectable', async t => {
   const f = await fixture(t, [paper('computation'), { id: 'clock', title: 'Atomic optical clock', abstract: 'Precision measurement with atoms.', date: '2026-08-31' },
     { id: 'other', title: 'An unrelated study', date: '2026-08-31' }]);

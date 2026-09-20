@@ -72,7 +72,7 @@ export function createConcernService(deps = {}) {
             onProgress: progress => { job.progress = progress; } });
         } catch (error) {
           logger.warn("Concern analysis fell back to rules", { reason: ["quota", "auth", "rate-limit"].includes(error.reason) ? error.reason : "request" });
-          const reason = data.engine.provider === "codex" ? error.message
+          const reason = data.engine.provider === "codex" || error.code === "synthesis-format" ? error.message
             : error.reason === "quota" ? "模型接口的用量额度已耗尽，恢复额度后可重试"
             : error.reason === "auth" ? "模型接口认证失败，请检查你填写的 API Key 和模型访问权限"
               : error.reason === "rate-limit" ? "模型接口限流（HTTP 429），请稍后重试"
@@ -85,8 +85,8 @@ export function createConcernService(deps = {}) {
       report.lastRefreshAt = data.lastRefreshAt;
       report.provider = data.engine.provider;
       if (report.mode === "llm") report.model = data.engine.label;
-      // A temporary LLM failure must never become a permanent cached answer.
-      if (report.mode === "llm" || !data.useLlm || !data.prepared.papers.length) {
+      // Failures and inconclusive synthesis must remain explicitly retryable.
+      if ((report.mode === "llm" && report.questions.length) || !data.useLlm || !data.prepared.papers.length) {
         try { await writeJsonAtomic(data.cacheFile, report); }
         catch { report.warning = [report.warning, "结果已生成，但本地缓存保存失败；关闭页面后可能需要重新分析。"].filter(Boolean).join(" "); }
       }

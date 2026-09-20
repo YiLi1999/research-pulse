@@ -92,11 +92,17 @@ export function createVisitorClient({ fetch: network = globalThis.fetch.bind(glo
       job.report.provider = "api";
       job.report.lastRefreshAt = data.state?.lastRefreshAt || null;
       job.report.limitations = job.report.limitations.map(text => text.replace("本机已抓取", "本站共享数据中"));
-      if (!await storage.set(reportKey, job.report)) job.report.warning = [job.report.warning, "浏览器未能持久保存报告；关闭页面后可能需要重新分析。"].filter(Boolean).join(" ");
+      // Keep paper notes, but let visitors explicitly retry an inconclusive synthesis.
+      if ((job.report.questions.length || !prepared.papers.length) && !await storage.set(reportKey, job.report)) {
+        job.report.warning = [job.report.warning, "浏览器未能持久保存报告；关闭页面后可能需要重新分析。"].filter(Boolean).join(" ");
+      }
       job.status = "completed";
     } catch (error) {
       job.status = "failed";
       job.error = signal?.aborted ? "分析已停止。已完成的逐篇缓存可在重试时复用；已发出的请求仍可能计费。" : error.message || "分析失败，请重试。";
+      if (!signal?.aborted && job.progress.stage === "synthesizing") {
+        job.error += " 已保存的逐篇缓存仍可复用；保持相同 API 地址和模型重试即可，无需清除浏览器数据。";
+      }
     } finally { api.apiKey = ""; }
   }
   async function start(input, signal) {

@@ -103,10 +103,12 @@ export function buildBatches(papers, maxChars = 48000) {
   return batches;
 }
 
-export function validateGroups(result, allowedIds, idKey) {
-  if (!Array.isArray(result?.questions) || !result.questions.length) throw new Error("AI 未返回有效问题。");
+export function validateGroups(result, allowedIds, idKey, { allowEmpty = false } = {}) {
+  if (!Array.isArray(result?.questions)) throw new Error("AI 返回格式无效：缺少 questions 数组。");
+  if (!allowEmpty && !result.questions.length) throw new Error("AI 未返回有效问题。");
   return result.questions.map(group => {
-    if (typeof group.question !== "string" || !group.question.trim() || !Array.isArray(group[idKey]) ||
+    if (!group || typeof group !== "object" || Array.isArray(group) ||
+        typeof group.question !== "string" || !group.question.trim() || !Array.isArray(group[idKey]) ||
         !group[idKey].length || group[idKey].some(id => !allowedIds.has(id))) {
       throw new Error("AI 返回的问题缺少有效的论文依据。");
     }

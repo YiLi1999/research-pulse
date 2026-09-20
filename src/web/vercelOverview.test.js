@@ -171,6 +171,56 @@ test('Vercel browser: own API, IndexedDB cache, scope reuse and isolated visitor
   assert.deepEqual(errors, []); assert.deepEqual(second.errors, []);
 });
 
+test('Vercel browser: malformed synthesis shows an error and a manual retry reuses saved paper notes', { timeout: 60000 }, async t => {
+  const requests = [];
+  let synthesisCalls = 0;
+  const { newPage } = await setup(t, (request, response) => {
+    requests.push(request.body);
+    const input = JSON.parse(request.body.messages.at(-1).content);
+    if (input.candidates && ++synthesisCalls === 1) {
+      response.json({ result: { summary: 'This response deliberately omits the required questions array.' } });
+      return;
+    }
+    response.json({ result: modelAnswer(request.body) });
+  });
+  const { page, errors } = await newPage();
+  await page.locator('.field-card[data-field="quantum"]').click();
+  await page.waitForFunction(() => document.querySelector('#concernScope').textContent.includes('当前匹配 2 篇'));
+  await fillApi(page);
+  await page.locator('#analyzeConcerns').click();
+  await page.waitForFunction(() => document.querySelector('#concernStatus').dataset.state === 'error');
+  const failure = await page.locator('#concernStatus').innerText();
+  assert.match(failure, /汇总/);
+  assert.match(failure, /缓存/);
+  assert.equal(await page.locator('#analyzeConcerns').isDisabled(), false);
+  assert.equal(await page.locator('#questions .concern-question').count(), 0);
+  assert.equal(requests.length, 2, 'a malformed response must not trigger an automatic paid retry');
+  const afterFailure = await storageContents(page);
+  const savedNotes = afterFailure.records.filter(row => row.key.startsWith('paper:'));
+  assert.equal(savedNotes.length, 2);
+  assert.equal(afterFailure.records.filter(row => row.key.startsWith('report:')).length, 0);
+
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('#trendMajor').value === 'quantum');
+  assert.equal(await page.locator('#trendApiKey').inputValue(), '');
+  await fillApi(page);
+  await page.locator('#checkTrendCache').click();
+  await page.waitForFunction(() => document.querySelector('#concernIncremental').textContent.includes('本次可复用 2 篇'));
+  assert.equal(requests.length, 2, 'reloading and checking retained notes do not invoke the model');
+  await page.locator('#analyzeConcerns').click();
+  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('分析完成'));
+  assert.equal(requests.length, 3, 'manual retry makes only the synthesis request');
+  assert.equal(requests.filter(body => JSON.parse(body.messages.at(-1).content).papers).length, 1);
+  assert.equal(synthesisCalls, 2);
+  assert.ok((await page.locator('#questions').innerText()).includes('复用 2 篇 · 新分析 0 篇'));
+  assert.equal(await page.locator('#questions .concern-question').count(), 1);
+  const afterRetry = await storageContents(page);
+  assert.deepEqual(afterRetry.records.filter(row => row.key.startsWith('paper:')), savedNotes);
+  assert.equal(afterRetry.records.filter(row => row.key.startsWith('report:')).length, 1);
+  assert.ok(!JSON.stringify(afterRetry).includes(api.apiKey));
+  assert.deepEqual(errors, []);
+});
+
 test('Vercel browser: clearing an in-flight key stops later calls and a new key can analyze', { timeout: 60000 }, async t => {
   const requests = [];
   let releaseFirst, firstRequest;
