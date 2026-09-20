@@ -1,0 +1,48 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#07110f"><title>大家最近在干啥呢</title><link rel="stylesheet" href="/styles.css"><style>.lang{display:flex;border:1px solid var(--line);padding:2px}.lang-btn{border:0;background:transparent;color:var(--muted);font:10px 'DM Mono';padding:7px 9px;cursor:pointer}.lang-btn.active{background:var(--cyan);color:#06100e}.refresh b{font:inherit}.journal-summary{display:flex;gap:8px;flex-wrap:wrap;margin:-8px 0 22px}.journal-pill{border:1px solid var(--line);background:#0a1714;padding:9px 12px;color:var(--muted);font:11px 'DM Mono'}.journal-pill b{color:var(--cyan);margin-left:7px}</style></head>
+<body><div class="noise"></div><header><a class="brand" href="/"><span class="logo">啥</span><span><b>大家最近在干啥呢</b><small data-i18n="brandSub">最新科研动态 · LIVE</small></span></a><nav><button class="nav active" data-view="papers" data-i18n="navPapers">最新论文</button><button class="nav" data-view="overview" data-i18n="navAnalysis">趋势分析</button></nav><div class="actions"><div class="lang"><button class="lang-btn active" data-lang="zh">中</button><button class="lang-btn" data-lang="en">EN</button></div><span id="updated" class="updated">等待同步</span><button id="refresh" class="refresh"><span>↻</span> <b data-i18n="refresh">刷新数据</b></button></div></header>
+<main><section id="papers" class="view active"><section class="hero"><div><p class="kicker"><i></i> JOURNAL CRAWLER / LAST 7 DAYS</p><h1 data-i18n-html="heroTitle">各大期刊 · 最近<span>7天论文</span></h1><p id="brief" class="brief">汇集 arXiv、APS 与 Nature 最新论文。点击刷新即可重新抓取、去重并更新数据。</p></div><div class="orb-wrap"><div class="orb"><div class="ring r1"></div><div class="ring r2"></div><div class="core"></div><span>7 DAYS<br><b id="paperCount">—</b> PAPERS</span></div></div></section>
+<section class="rank-settings" aria-labelledby="rankSettingsTitle">
+  <div class="rank-settings-head"><h2 id="rankSettingsTitle">关键词 Rank 设置</h2><div class="save-state"><span id="rankSaveStatus" role="status" aria-live="polite">正在加载已保存设置…</span><button id="rankRetry" type="button" hidden>重试</button></div></div>
+  <p id="rankFormula" class="rank-formula">总分 = Σ weight ×（标题命中 × 2 + 摘要命中 × 1）</p>
+  <details class="rank-rules"><summary id="rankRulesLabel">评分规则</summary><p id="rankHelp" class="rank-help">每个关键词在同一字段只计一次；忽略大小写，按完整词或短语匹配。weight=0 暂停计分；不同关键词独立累加。没有隐藏加分。同分按时间从新到旧，全局 Rank 不随筛选重编号。</p></details>
+  <div id="keywordRows" class="keyword-rows" aria-label="关键词与权重"></div>
+  <p id="rankEmpty" class="rank-help" hidden>尚未设置关键词。所有论文得分为 0，按时间排序；空列表也会保存。</p>
+  <form id="keywordForm" class="keyword-add"><label><span id="newKeywordLabel">新增关键词</span><input id="keywordInput" maxlength="100" placeholder="例如 fidelity estimation" required disabled></label><label class="new-weight"><span>Weight</span><input id="keywordWeight" type="number" min="0" max="100000" step="any" value="1" required disabled></label><button id="keywordAdd" type="submit" disabled>＋ 添加</button><span id="rankPersistence" class="rank-help">自动保存到当前浏览器对应的访客空间，不影响其他访客；清除站点 Cookie 后会成为新访客。</span></form>
+</section>
+<section class="toolbar"><div class="toolbar-side"><div><label data-i18n="journalLabel">选择期刊</label><select id="journal"><option value="">全部期刊</option></select></div><div><label data-i18n="window">时间窗口</label><select id="days"><option value="7">近 7 天</option><option value="30">近 30 天</option><option value="90">近 90 天</option><option value="9999">全部</option></select></div><button id="clear" data-i18n="clear">清空筛选（保留权重）</button></div></section>
+<div class="section-head"><div><p>CRAWLED JOURNAL DATA / 7 DAYS</p><h2 data-i18n="paperHeading">最近 7 天期刊论文</h2><small data-i18n="paperSub">包含 accepted 与 published；点击标题查看原文</small></div><div class="list-controls"><select id="sort"><option value="rank">关键词 Rank：高到低</option><option value="date-desc">时间：最新优先</option><option value="date-asc">时间：最早优先</option></select><input id="search" type="search" placeholder="搜索标题、作者或摘要" data-i18n-placeholder="search"></div></div><div id="journalSummary" class="journal-summary"></div><div id="paperList" class="paper-list"></div></section>
+<section id="overview" class="view"><article class="panel questions">
+  <div class="panel-head"><div><p>WHAT MATTERS NOW / LAST 7 DAYS</p><h2 id="concernTitle">大家最近在解决</h2></div><span class="concern-window">7 DAYS</span></div>
+  <p id="concernIntro" class="concern-intro">选择领域后点击分析，归纳近7天论文共同关注的科学问题，并查看对应论文。</p>
+  <section class="field-overview" aria-labelledby="fieldOverviewTitle">
+    <h3 id="fieldOverviewTitle">先看各领域发文量</h3>
+    <p id="fieldOverviewNote" class="concern-meta"></p>
+    <p id="fieldOverviewSummary" class="concern-meta" role="status">正在统计近7天论文…</p>
+    <div id="fieldCards" class="field-cards" aria-label="选择研究领域"></div>
+  </section>
+  <fieldset class="trend-api" aria-describedby="trendApiPrivacy trendApiHelp">
+    <legend id="trendApiTitle">使用你自己的 API 分析</legend>
+    <p id="trendApiPrivacy" class="concern-meta">API Key 仅用于当前页面和服务端本次请求 / 任务内存，不写入浏览器或服务器存储；刷新或离开页面后需重新输入。模型调用费用由你的 API 账户承担。</p>
+    <div class="trend-api-fields">
+      <label for="trendBaseUrl"><span id="trendBaseUrlLabel">API 地址（Base URL）</span><input id="trendBaseUrl" type="url" inputmode="url" placeholder="https://api.example.com/v1" autocomplete="off" spellcheck="false" maxlength="2048" aria-describedby="trendApiHelp" required></label>
+      <label for="trendApiKey"><span>API Key</span><input id="trendApiKey" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false" autocapitalize="none" maxlength="4096" required></label>
+      <label for="trendModel"><span id="trendModelLabel">模型名称</span><input id="trendModel" type="text" placeholder="你的服务商提供的模型 ID" autocomplete="off" spellcheck="false" maxlength="200" required></label>
+    </div>
+    <p id="trendApiHelp" class="concern-meta">填写你信任的 OpenAI 兼容服务商的公网 HTTPS 接口根地址（通常以 /v1 结尾）。Key 会经本站服务端转发给该地址。填写或切换领域不会调用 AI。</p>
+    <div class="trend-api-actions"><button id="checkTrendCache" type="button" disabled>检查我的缓存（不调用 AI）</button><button id="clearTrendApi" type="button">清除 API Key</button><button id="reloadTrendOptions" type="button" hidden>重新读取范围</button></div>
+    <p id="trendApiStatus" class="concern-meta" role="status" aria-live="polite">请填写 API 地址、API Key 和模型名称。</p>
+  </fieldset>
+  <h3 id="concernSelectionTitle">选择感兴趣的领域，再分析共同问题</h3>
+  <div class="concern-controls">
+    <label for="trendMajor"><span id="trendMajorLabel">大领域</span><select id="trendMajor" disabled><option value="">全部领域</option></select></label>
+    <label for="trendMinor"><span id="trendMinorLabel">小领域</span><select id="trendMinor" disabled><option value="">全部小领域</option></select></label>
+    <button id="analyzeConcerns" type="button" disabled>分析近7天关注问题</button>
+  </div>
+  <p id="concernScope" class="concern-meta">正在读取分析范围…</p>
+  <p id="concernModel" class="concern-meta"></p>
+  <p id="concernIncremental" class="concern-incremental" role="status"></p>
+  <details class="concern-method"><summary id="concernMethodLabel">分析方法与范围说明</summary><p id="concernMethod"></p></details>
+  <p id="concernStatus" class="concern-status" role="status" aria-live="polite">正在读取分析范围…</p>
+  <div id="questions" aria-busy="false"></div>
+</article></section>
+</main><footer>大家最近在干啥呢 <span>·</span> ARXIV <span>·</span> APS <span>·</span> NATURE <b>数据仅用于科研趋势观察</b></footer><script type="module" src="/app.js"></script></body></html>

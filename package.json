@@ -1,0 +1,46 @@
+{
+  "name": "arxiv-quant-tracker",
+  "version": "0.1.0",
+  "description": "arXiv quant-ph 最近 7 天论文追踪器，支持中文总结、趋势分析与本地网页展示。",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "service:install": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows-service.ps1 -Action Install",
+    "service:start": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows-service.ps1 -Action Start",
+    "service:status": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows-service.ps1 -Action Status",
+    "service:stop": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows-service.ps1 -Action Stop",
+    "service:uninstall": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows-service.ps1 -Action Uninstall",
+    "refresh": "node src/index.js --refresh",
+    "refresh:aps:accepted": "node src/jobs/fetch-aps-accepted.js",
+    "fetch:nature": "node src/jobs/fetch-nature-recent.js",
+    "lint": "node --check src/index.js",
+    "test": "node --test",
+    "build:vercel": "node scripts/build-vercel.js",
+    "export:public": "node scripts/export-public-data.js"
+  },
+  "keywords": [
+    "arxiv",
+    "quant-ph",
+    "tracker",
+    "llm",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "fast-xml-parser": "^5.3.0",
+    "luxon": "^3.7.2",
+    "playwright": "^1.54.2"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

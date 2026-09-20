@@ -1,0 +1,19 @@
+# Allowlist: no local .env, data, .runtime, archive, node_modules,
+# paper2task_materials, deployment ZIPs, or unrelated files enter the build.
+**
+!Dockerfile
+!package.json
+!package-lock.json
+!src/
+!src/**
+
+# Also protect against private/runtime files accidentally added under src.
+**/.env
+**/.env.*
+**/node_modules
+**/data
+**/.runtime
+**/archive
+**/paper2task_materials
+**/*.test.js
+**/*.log

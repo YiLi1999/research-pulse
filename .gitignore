@@ -1,0 +1,22 @@
+node_modules/
+.runtime/
+.env
+data/raw/*.html
+data/raw/*.xml
+data/cache/*.json
+data/summaries/*.json
+data/analysis/*.json
+data/*.json
+*.log
+
+archive/*.zip
+
+# Public deployments contain only the sanitized public-data snapshot.
+data/
+dist/
+artifacts/
+.vercel/
+.env.*
+!.env.example
+deploy/server.env
+

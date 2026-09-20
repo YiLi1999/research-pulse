@@ -1,0 +1,31 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "fluid": true,
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "dist",
+  "redirects": [
+    { "source": "/trends", "destination": "/?view=overview", "permanent": false },
+    { "source": "/trends.html", "destination": "/?view=overview", "permanent": false }
+  ],
+  "functions": {
+    "api/chat.js": {
+      "maxDuration": 300,
+      "excludeFiles": "{data,public-data,archive,.runtime,paper2task_materials}/**"
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "same-origin" }
+      ]
+    },
+    {
+      "source": "/data/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+    }
+  ]
+}

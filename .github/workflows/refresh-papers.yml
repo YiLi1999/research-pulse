@@ -1,0 +1,52 @@
+name: Refresh public papers
+
+on:
+  schedule:
+    - cron: '23 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-public-papers
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_TIMEZONE: Asia/Shanghai
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Restore last published source caches
+        run: node scripts/export-public-data.js --seed
+      - name: Fetch public papers without AI
+        run: npm run refresh
+      - name: Export public metadata only
+        run: npm run export:public
+      - name: Commit the daily snapshot
+        env:
+          DEPLOY_COMMIT_NAME: ${{ vars.DEPLOY_COMMIT_NAME }}
+          DEPLOY_COMMIT_EMAIL: ${{ vars.DEPLOY_COMMIT_EMAIL }}
+        run: |
+          if git diff --quiet -- public-data/dashboard.json; then
+            echo "Public snapshot is unchanged."
+            exit 0
+          fi
+          if [ -z "$DEPLOY_COMMIT_NAME" ] || [ -z "$DEPLOY_COMMIT_EMAIL" ]; then
+            echo "Set Actions variables DEPLOY_COMMIT_NAME and DEPLOY_COMMIT_EMAIL to your own GitHub-connected author identity (see deploy/VERCEL.md)."
+            exit 1
+          fi
+          git config user.name "$DEPLOY_COMMIT_NAME"
+          git config user.email "$DEPLOY_COMMIT_EMAIL"
+          git add public-data/dashboard.json
+          git commit -m "Update public paper snapshot"
+          git push

@@ -1,0 +1,17 @@
+.env
+.env.*
+**/.env
+**/.env.*
+node_modules
+data
+.runtime
+archive
+paper2task_materials
+chrome-extension
+dist
+deploy
+**/*.test.js
+**/*.log
+**/*.zip
+**/*.tar.gz
+.git

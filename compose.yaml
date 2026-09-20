@@ -1,0 +1,28 @@
+name: research-pulse
+
+services:
+  app:
+    build: .
+    image: research-pulse:local
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3100"
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Shanghai}
+      ARXIV_CATEGORIES: ${ARXIV_CATEGORIES:-quant-ph,math}
+      ARXIV_MATH_MAX_PAGES: ${ARXIV_MATH_MAX_PAGES:-50}
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - paper-data:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  paper-data:
