@@ -2,29 +2,32 @@ import { apiFetch, usesBrowserRuntime } from './apiClient.js';
 import { escapeHtml } from './paperCards.js';
 
 const strings = {
-  zh: { title: '大家最近在解决', major: '大领域', minor: '小领域', all: '全部领域', allMinor: '全部小领域',
-    analyze: '分析近7天关注问题', analyzing: '正在分析…', retry: '重试 AI 分析',
-    intro: '先查看各领域近7天的发文量，再选择你关心的方向。点击分析后，只读取新增或标题、摘要变化的论文，复用历史逐篇结果并汇总近7天的共同问题。',
+  zh: { title: '近7天研究趋势', major: '大领域', minor: '小领域', all: '全部领域', allMinor: '全部小领域',
+    analyze: '分析近7天研究趋势', analyzing: '正在分析…', retry: '重试趋势归纳',
+    intro: '分析所选范围全部论文，结合缓存归纳最多5个主要研究方向，比较跨论文的共同动向、主要路径与瓶颈。分析篇数与方向数量分别展示；少量或零散论文不会强行拆成趋势。',
     loading: '正在读取分析范围…', choose: '尚未开始分析。选择范围后点击按钮；打开页面和切换领域不会调用 AI。',
-    preparing: '正在准备论文…', merge: '所有批次已读完，正在合并共同问题…',
+    preparing: '正在准备论文…', merge: '所有论文已读完，正在归纳主要研究方向…',
     noPapers: '这个范围近7天没有论文。请切换领域或点击页面顶部的“刷新数据”。',
     failed: '加载失败，请点击重试。', loadRetry: '重试加载', method: '分析方法与范围说明',
-    rules: '规则统计 · 非 AI 归纳', llm: 'AI 归纳 · 基于标题与摘要',
-    evidence: '查看依据论文', noQuestions: '没有足够依据归纳共同问题。', abstract: '摘要片段', missing: '无摘要，依据仅为标题。',
+    rules: '规则统计 · 非 AI 趋势', llm: 'AI 趋势归纳 · 基于标题与摘要',
+    evidence: '查看这个方向的依据论文', noQuestions: '暂时没有足够的跨论文证据归纳主要研究方向。', abstract: '摘要片段', missing: '无摘要，依据仅为标题。',
     caveat: '分析范围为所选时区今天及前6天，截止点击时；排除旧数据、未来日期和无有效日期的条目。同一论文可跨领域。统计使用期刊栏目、标题、摘要和关键词规则，不调用 AI。AI 首次分析读取所选领域全部标题与可用摘要；以后仅分析未缓存或标题、摘要变化的论文，逐篇保存后重新汇总。跨日期和领域可复用；切换模型或分析方法会重新读取。旧版仅有整份报告，无法作为逐篇缓存。每位访客须填写自己的 API 地址、Key 和模型。只有点击分析才会调用模型，费用由该 API 账户承担。API 地址、Key 和模型保存在当前浏览器，下次打开自动填入；Key 不写入服务器数据文件或日志。清除 Key 会删除浏览器保存的密钥并停止本页跟踪，已提交的服务端任务仍可能完成并产生费用。API 调用失败时会明确标记失败，不将规则统计当作 AI 结论。分析结果保存在服务端访客空间，同一访客、数据、领域与引擎可复用；恢复相同 API 配置后可手动检查缓存，不会自动调用模型。'
   },
-  en: { title: 'Questions researchers are tackling', major: 'Broad field', minor: 'Subfield', all: 'All fields', allMinor: 'All subfields',
-    analyze: 'Analyze the last 7 days', analyzing: 'Analyzing…', retry: 'Retry AI analysis',
-    intro: 'Compare publication counts, choose your field, then analyze new or changed papers. Saved per-paper notes are reused to synthesize the last seven days. Reports are in Chinese.',
+  en: { title: 'Research trends · last 7 days', major: 'Broad field', minor: 'Subfield', all: 'All fields', allMinor: 'All subfields',
+    analyze: 'Analyze research trends', analyzing: 'Analyzing…', retry: 'Retry trend synthesis',
+    intro: 'Analyze every paper in the selected scope, reusing saved notes, to identify up to five broad research directions. Compare shared patterns, approaches and bottlenecks across papers. Paper coverage is shown separately from direction counts. Reports are in Chinese.',
     loading: 'Loading analysis scope…', choose: 'Choose a scope, then click Analyze. Opening this page or changing fields does not call AI.',
-    preparing: 'Preparing papers…', merge: 'All batches read. Combining research questions…',
+    preparing: 'Preparing papers…', merge: 'All papers read. Synthesizing broad research directions…',
     noPapers: 'No papers in this scope in the last 7 days. Change fields or refresh the dataset.',
     failed: 'Loading failed. Please retry.', loadRetry: 'Retry loading', method: 'Method and scope',
-    rules: 'Rule statistics · not AI synthesis', llm: 'AI synthesis · titles and abstracts', evidence: 'Supporting papers',
-    noQuestions: 'Insufficient evidence to identify shared questions.', abstract: 'Abstract excerpt', missing: 'No abstract; title evidence only.',
+    rules: 'Rule statistics · not AI trends', llm: 'AI trend synthesis · titles and abstracts', evidence: 'Supporting papers for this direction',
+    noQuestions: 'Insufficient cross-paper evidence to identify broad research directions.', abstract: 'Abstract excerpt', missing: 'No abstract; title evidence only.',
     caveat: 'The window includes today and the previous six days in the configured time zone, up to the request time. Old, future-dated and undated records are excluded. Fields can overlap. Counts use local classification rules without AI. Initial analysis reads every selected title and abstract. Later runs only read uncached or changed content, save per-paper notes and synthesize the current seven-day window. Notes can be reused across dates and scopes; model or extraction changes invalidate them. Legacy whole reports are not per-paper caches. Each visitor supplies their own API base URL, key and model. Only clicking Analyze calls the model, billed to that API account. The API address, key and model are saved in this browser and restored on your next visit. Keys are not saved in server data files or logs. Clearing a key removes it from browser storage and stops this page from following the job; an already submitted server job may still finish and incur charges. API failures are explicitly identified. Successful results are saved in your visitor space on the server and reused for unchanged data, scope and engine. With the same API configuration restored, explicitly check the cache to restore a result. Restoring settings does not call the model.'
   }
 };
+
+strings.zh.caveat = '研究趋势按跨论文的共同目标归纳，通常为3–5个宽方向，证据不足时更少；单篇不独立列为趋势。每个方向比较共同动向、主要路径及瓶颈，并附依据论文。已分析但未归入主要方向的论文单独折叠展示。没有前一周基线，不推断热度上升。' + strings.zh.caveat;
+strings.en.caveat = 'Trends summarize shared goals across papers, usually in three to five broad directions, or fewer when evidence is limited. A single paper is not a trend. Each direction compares shared patterns, approaches and bottlenecks with supporting papers. Analyzed papers outside the main directions are listed separately. Without a previous-week baseline, growth cannot be inferred. ' + strings.en.caveat;
 
 if (usesBrowserRuntime()) {
   strings.zh.caveat = strings.zh.caveat
@@ -41,30 +44,45 @@ function safeLink(value) {
 }
 
 export function renderConcernReport(report, lang = 'zh') {
-  const c = strings[lang], coverage = report.coverage;
-  const sources = Object.entries(coverage.sourceCounts).map(([source, count]) => `${source}: ${count}`).join(' · ');
+  const c = strings[lang], coverage = report.coverage, zh = lang === 'zh';
+  const sources = Object.entries(coverage.sourceCounts || {}).map(([source, count]) => `${source}: ${count}`).join(' · ');
+  const analyzed = coverage.analyzedCount;
+  const incomplete = report.synthesis?.complete === false;
+  const hasAnalysisCount = report.mode === 'llm' && Number.isFinite(analyzed);
+  const fullyRead = hasAnalysisCount && analyzed === coverage.selectedCount && !incomplete;
+  const analysisText = hasAnalysisCount ? (zh
+    ? `${fullyRead ? '完整分析' : '已读取'} ${analyzed}/${coverage.selectedCount} 篇${incomplete ? ' · 趋势汇总未充分完成' : ''}`
+    : `${fullyRead ? 'All papers analyzed' : 'Papers read'}: ${analyzed}/${coverage.selectedCount}${incomplete ? ' · Trend synthesis incomplete' : ''}`) : '';
   const meta = lang === 'zh'
-    ? `${coverage.selectedCount} 篇去重论文 · ${coverage.abstractCount} 篇有摘要 · 以下问题关联 ${coverage.supportedCount} 篇`
-    : `${coverage.selectedCount} unique papers · ${coverage.abstractCount} with abstracts · ${coverage.supportedCount} cited below`;
+    ? `${coverage.selectedCount} 篇去重论文 · ${coverage.abstractCount} 篇有摘要 · ${coverage.supportedCount} 篇归入以下方向`
+    : `${coverage.selectedCount} unique papers · ${coverage.abstractCount} with abstracts · ${coverage.supportedCount} assigned to the directions below`;
   const paperHtml = paper => `<li><a href="${safeLink(paper.url)}" target="_blank" rel="noopener noreferrer">${paper.ref ? `[${escapeHtml(paper.ref)}] ` : ''}${escapeHtml(paper.title)}</a>
-    <p class="concern-paper-meta">${escapeHtml(paper.source)} · ${escapeHtml(paper.date.slice(0, 10))}</p>
+    <p class="concern-paper-meta">${escapeHtml(paper.source)} · ${escapeHtml(String(paper.date || '').slice(0, 10))}</p>
     <p>${paper.abstract ? `${c.abstract}: ${escapeHtml(paper.abstract)}…` : c.missing}</p></li>`;
+  const detailHtml = (label, text) => text ? `<p><strong>${label}：</strong>${escapeHtml(text)}</p>` : '';
   return `<div class="concern-report-head"><span class="concern-badge ${report.mode === 'llm' ? 'is-ai' : ''}">${c[report.mode === 'llm' ? 'llm' : 'rules']}</span>
     <span>${escapeHtml(report.scope.label)}</span></div>
     <p class="concern-period">${escapeHtml(report.window.start)} — ${escapeHtml(report.window.end)} · ${escapeHtml(report.window.timezone)}</p>
+    ${analysisText ? `<p class="concern-coverage"><strong>${escapeHtml(analysisText)}</strong></p>` : ''}
     <p class="concern-summary">${escapeHtml(report.summary)}</p>
     ${report.incremental ? `<p class="concern-incremental">${lang === 'zh'
       ? `本报告生成时：复用 ${report.incremental.cached} 篇 · 新分析 ${report.incremental.analyzed} 篇 · 近7天共 ${report.incremental.total} 篇`
       : `At generation: ${report.incremental.cached} reused · ${report.incremental.analyzed} newly analyzed · ${report.incremental.total} in this window`}</p>` : ''}
     ${report.warning ? `<p class="concern-warning" role="note">${escapeHtml(report.warning)}</p>` : ''}
+    ${incomplete ? `<p class="concern-warning" role="note">${zh ? '趋势汇总尚不充分，当前内容仅供核对。已保存的逐篇分析可复用，点击“重试趋势归纳”重新汇总。' : 'Trend synthesis is incomplete. Saved per-paper notes can be reused; click Retry trend synthesis to try again.'}</p>` : ''}
     <p class="concern-meta">${escapeHtml(meta)}<br>${escapeHtml(sources)}<br>${lang === 'zh' ? '生成于' : 'Generated'} ${escapeHtml(new Date(report.generatedAt).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en-US'))}${report.model ? ` · ${escapeHtml(report.model)}` : ''}</p>
+    <h3 class="concern-directions-title">${zh ? `主要研究方向（${report.questions.length} 个）` : `Broad research directions (${report.questions.length})`}</h3>
+    <p class="concern-meta">${zh ? '以下为近7天样本中的共同动向；未与前一周比较，不代表热度上升。' : 'Shared patterns in this seven-day sample. No comparison with the previous week has been made, so these do not establish growth.'}</p>
     ${report.questions.map((question, index) => `<article class="concern-question">
       <div class="concern-question-head"><span class="concern-number">${String(index + 1).padStart(2, '0')}</span><h3>${escapeHtml(question.question)}</h3>
-      <span class="concern-count">${question.count} ${lang === 'zh' ? '篇' : 'papers'}<small>${question.share}%</small></span></div>
-      <p>${escapeHtml(question.focus)}</p>
+      <span class="concern-count">${question.count} ${lang === 'zh' ? '篇论文' : 'papers'}<small>${zh ? '占所选论文 ' : 'of scope: '}${question.share}%</small></span></div>
+      ${detailHtml(zh ? '共同动向' : 'Shared pattern', question.pattern || question.focus)}
+      ${detailHtml(zh ? '主要路径与差异' : 'Approaches and differences', question.approaches)}
+      ${detailHtml(zh ? '共同瓶颈' : 'Shared bottlenecks', question.gaps)}
       <div class="bar" aria-hidden="true"><i style="width:${Math.min(100, Math.max(0, Number(question.share) || 0))}%"></i></div>
       <details class="concern-evidence"><summary>${c.evidence} (${question.count})</summary><ol>${question.papers.map(paperHtml).join('')}</ol></details>
     </article>`).join('') || `<p class="rank-help">${c.noQuestions}</p>`}
+    ${report.unassignedPapers?.length ? `<details class="concern-evidence concern-unassigned"><summary>${zh ? '已分析但未归入主要方向的论文' : 'Analyzed papers outside the main directions'} (${report.unassignedPapers.length})</summary><p class="concern-meta">${zh ? '这些论文已纳入分析，但本次汇总未将其归入主要方向；可展开核对，不代表这些工作不重要。' : 'These papers were analyzed but were not assigned to a main direction in this synthesis. Expand to inspect them; their omission does not establish that they are unimportant.'}</p><ol>${report.unassignedPapers.map(paperHtml).join('')}</ol></details>` : ''}
     <div class="concern-limitations">${report.limitations.map(note => `<p>${escapeHtml(note)}</p>`).join('')}</div>`;
 }
 
@@ -131,7 +149,7 @@ export function mountConcernAnalysis({ lang = 'zh' } = {}) {
     button.disabled = busy || !ready || !metadata?.coverage.selectedCount || !validApi();
     checkCache.disabled = button.disabled;
     reloadOptions.hidden = !retryLoading;
-    button.textContent = busy ? copy().analyzing : report?.mode === 'rules' ? copy().retry : copy().analyze;
+    button.textContent = busy ? copy().analyzing : report?.mode === 'rules' || report?.synthesis?.complete === false ? copy().retry : copy().analyze;
     button.classList.toggle('loading', busy);
     output.setAttribute('aria-busy', String(busy));
     $('#fieldCards').querySelectorAll('button').forEach(card => { card.disabled = busy; });
@@ -144,7 +162,7 @@ export function mountConcernAnalysis({ lang = 'zh' } = {}) {
   function renderFieldOverview() {
     const zh = isZh();
     $('#fieldOverviewTitle').textContent = zh ? '先看各领域发文量' : 'Compare publication counts';
-    $('#concernSelectionTitle').textContent = zh ? '选择感兴趣的领域，再分析共同问题' : 'Choose a field to analyze';
+    $('#concernSelectionTitle').textContent = zh ? '选择感兴趣的领域，再归纳研究趋势' : 'Choose a field to synthesize research trends';
     $('#fieldOverviewNote').textContent = zh
       ? '近7天 · 按论文数排序 · 本站已抓取样本，非全学界。跨领域论文可重复计入，比例之和可超过100%。发文量不是研究人数，也不能说明热度正在上升。分类为规则估计，可能误分或漏分。'
       : 'Last 7 days, ranked by paper count in this dataset. Fields overlap, so shares can exceed 100%. Paper counts are not researcher counts or evidence of growth. Rule-based labels can be incomplete or inaccurate.';
@@ -223,10 +241,10 @@ export function mountConcernAnalysis({ lang = 'zh' } = {}) {
   function progressText(job) {
     const { stage, completed, total, cached = 0, analyzed = 0, pending = 0, mergeRound, mergeCompleted, mergeTotal } = job.progress || {};
     status.textContent = stage === 'synthesizing' ? (isZh()
-      ? `已复用 ${cached} 篇、新分析 ${analyzed} 篇；正在汇总近7天问题（第 ${mergeRound || 1} 轮 ${mergeCompleted || 0}/${mergeTotal || 1}）。`
-      : `Reused ${cached}, analyzed ${analyzed}. Synthesizing round ${mergeRound || 1}: ${mergeCompleted || 0}/${mergeTotal || 1}.`) : total
-      ? isZh() ? `已复用 ${cached} 篇；新增或变化论文 ${analyzed} / ${pending} 篇，${completed} / ${total} 批完成。逐篇结果随完成保存。`
-        : `Reading papers: ${completed} / ${total} batches. You may switch tabs; analysis continues.`
+      ? `已读取 ${cached + analyzed}/${cached + pending} 篇（复用 ${cached} 篇、新分析 ${analyzed} 篇）；正在归纳主要研究方向（第 ${mergeRound || 1} 轮 ${mergeCompleted || 0}/${mergeTotal || 1}）。`
+      : `Read ${cached + analyzed}/${cached + pending} papers (${cached} reused, ${analyzed} new). Synthesizing broad directions, round ${mergeRound || 1}: ${mergeCompleted || 0}/${mergeTotal || 1}.`) : total
+      ? isZh() ? `已读取 ${cached + analyzed}/${cached + pending} 篇（复用 ${cached} 篇、新分析 ${analyzed} 篇）；${completed} / ${total} 批完成。全部读取后再归纳研究趋势。`
+        : `Read ${cached + analyzed}/${cached + pending} papers (${cached} reused, ${analyzed} new); ${completed}/${total} batches. Trends will be synthesized after all papers are read.`
       : copy().preparing;
   }
   async function follow(job, version, payload, signal) {
@@ -247,11 +265,14 @@ export function mountConcernAnalysis({ lang = 'zh' } = {}) {
     } catch { /* Keep the completed report if metadata refresh fails. */ }
     if (version !== operationVersion) return;
     const fallback = job.report.mode === 'rules' && job.report.warning;
-    status.textContent = fallback
+    const incomplete = job.report.synthesis?.complete === false;
+    status.textContent = incomplete
+      ? isZh() ? '趋势汇总未充分完成。已保存的逐篇分析可复用，点击“重试趋势归纳”继续。' : 'Trend synthesis is incomplete. Saved per-paper notes can be reused; retry trend synthesis.'
+      : fallback
       ? isZh() ? 'AI 分析未完成，已展示规则统计。请查看下方原因，恢复后可重试。' : 'AI analysis did not complete. Rule statistics are shown; see the reason below before retrying.'
-      : isZh() ? (job.cached ? '已载入你保存的分析，无需重复调用模型。' : '分析完成。展开问题下方的依据论文可核对原文。')
-        : 'Analysis ready. Expand the supporting papers to inspect the evidence.';
-    status.dataset.state = fallback ? 'warning' : 'ready';
+      : isZh() ? (job.cached ? '已载入你保存的研究趋势，无需重复调用模型。' : '趋势分析完成。下方分别展示论文覆盖与主要研究方向，展开依据论文可核对原文。')
+        : 'Trend analysis ready. Paper coverage and broad directions are shown separately; expand the evidence to inspect the papers.';
+    status.dataset.state = fallback || incomplete ? 'warning' : 'ready';
   }
   async function refresh() {
     if (busy) return;
@@ -282,8 +303,11 @@ export function mountConcernAnalysis({ lang = 'zh' } = {}) {
         metadata = data; catalog = data.catalog; fillFields(); scopeText();
         if (data.job) { await follow(data.job, version, payload, signal); return; }
         if (data.report) showReport(data.report);
-        status.dataset.state = 'ready';
-        status.textContent = data.report
+        const incomplete = data.report?.synthesis?.complete === false;
+        status.dataset.state = incomplete ? 'warning' : 'ready';
+        status.textContent = incomplete
+          ? isZh() ? '趋势汇总未充分完成。已保存的逐篇分析可复用，点击“重试趋势归纳”继续。' : 'Trend synthesis is incomplete. Saved per-paper notes can be reused; retry trend synthesis.'
+          : data.report
           ? isZh() ? '已载入你的缓存，没有调用 AI。' : 'Your saved report is loaded. No AI call was made.'
           : isZh() ? '尚无当前范围的报告缓存。点击分析将使用你的 API。' : 'No saved report for this scope. Analyze will use your API.';
       } else {

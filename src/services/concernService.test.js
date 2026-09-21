@@ -11,6 +11,12 @@ import { createServer } from '../web/server.js';
 const fixedNow = () => new Date('2026-08-31T10:00:00Z');
 const sample = () => [{ id: 'example', title: 'Quantum error correction', abstract: 'Surface code decoders improve reliability.', date: '2026-08-27', source: 'arxiv' }];
 const modelAnswer = { papers: [{ id: 'p1', questions: [{ question: '如何改善逻辑错误率？', focus: '改进表面码解码。' }] }] };
+const trendSample = () => [...sample(), { ...sample()[0], id: 'example-2', title: 'Neural decoders for quantum error correction' }];
+function trendAnswer(messages) {
+  const prompt = JSON.parse(messages.at(-1).content);
+  if (prompt.papers) return { papers: prompt.papers.map(paper => ({ id: paper.id, questions: modelAnswer.papers[0].questions })) };
+  return { questions: [{ question: '改进量子纠错解码', focus: '多篇论文比较解码方法以降低逻辑错误率。', groupIds: prompt.candidates.map(candidate => candidate.id) }] };
+}
 const visitorApi = { baseUrl: 'https://api.example.com/v1', apiKey: 'visitor-secret', model: 'test' };
 
 async function setup(t, deps = {}) {
@@ -34,23 +40,23 @@ async function done(service, job, context) {
 
 test('opening options never calls AI; results survive restarts, ranking changes reuse cache, content changes invalidate it', async t => {
   let calls = 0;
-  const papers = sample();
-  const { service, settings } = await setup(t, { loadPapers: async () => papers, chat: async () => { calls++; return modelAnswer; } });
+  const papers = trendSample();
+  const { service, settings } = await setup(t, { loadPapers: async () => papers, chat: async messages => { calls++; return trendAnswer(messages); } });
   const initial = await service.getOptions({});
   assert.equal(initial.report, null);
   assert.equal(calls, 0);
   const first = await done(service, await service.start({}));
   assert.equal(first.report.mode, 'llm');
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
   papers[0].recommendation = { score: 99999 };
   const restarted = createConcernService(settings);
   assert.equal((await restarted.start({})).cached, true);
-  assert.equal((await restarted.getOptions({})).report.questions[0].count, 1);
-  assert.equal(calls, 1);
+  assert.equal((await restarted.getOptions({})).report.questions[0].count, 2);
+  assert.equal(calls, 2);
   papers[0].abstract += ' New evidence.';
   assert.equal((await restarted.getOptions({})).report, null);
   await done(restarted, await restarted.start({}));
-  assert.equal(calls, 2);
+  assert.equal(calls, 4);
 });
 
 test('same-scope double clicks share a job; different active scopes are rejected without more AI calls', async t => {
@@ -122,9 +128,9 @@ test('HTTP integration validates hierarchy, returns job status, and redirects le
 
 test('visitor endpoint and model changes have distinct cache identities', async t => {
   let baseUrl = 'https://first.example.com/v1', model = 'model-a', calls = 0;
-  const { service } = await setup(t, { getEngine: async () => ({ available: true, provider: 'api', model,
+  const { service } = await setup(t, { loadPapers: async () => trendSample(), getEngine: async () => ({ available: true, provider: 'api', model,
     label: `API · ${model}`, signature: ['visitor-api', baseUrl, model], concurrency: 1,
-    chat: async () => { calls++; return modelAnswer; } }) });
+    chat: async messages => { calls++; return trendAnswer(messages); } }) });
   await done(service, await service.start({}));
   assert.equal((await service.start({})).cached, true);
   baseUrl = 'https://second.example.com/v1';
@@ -133,5 +139,5 @@ test('visitor endpoint and model changes have distinct cache identities', async 
   model = 'model-b';
   assert.equal((await service.getOptions({})).report, null);
   await done(service, await service.start({}));
-  assert.equal(calls, 3);
+  assert.equal(calls, 6);
 });

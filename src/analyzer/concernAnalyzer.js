@@ -31,7 +31,7 @@ export function prepareConcerns(papers, input = {}, { now = new Date(), timezone
   };
 }
 
-function evidencePaper(paper) {
+export function evidencePaper(paper) {
   return { id: paper.id || paper.ref, ref: paper.ref, title: paper.title || "未命名论文", url: paper.url || paper.arxivUrl || "",
     date: paper.date || paper.submittedAt || "", source: paper.journal_display || paper.journal || paper.source || "unknown",
     abstract: (paper.abstract || "").replace(/\s+/g, " ").slice(0, 420) };
@@ -43,7 +43,10 @@ export function finishReport(prepared, groups, extra) {
   const questions = groups.map(group => {
     const refs = [...new Set(group.paperIds)].filter(id => index.has(id));
     refs.forEach(id => supported.add(id));
-    return { question: group.question, focus: group.focus, count: refs.length,
+    return { question: group.question, focus: group.focus,
+      ...(group.pattern ? { pattern: group.pattern } : {}),
+      ...(group.approaches ? { approaches: group.approaches } : {}),
+      ...(group.gaps ? { gaps: group.gaps } : {}), count: refs.length,
       share: prepared.papers.length ? Math.round(refs.length / prepared.papers.length * 1000) / 10 : 0,
       papers: refs.map(id => evidencePaper(index.get(id))) };
   }).filter(question => question.count).sort((a, b) => b.count - a.count);
@@ -96,6 +99,7 @@ export function validateGroups(result, allowedIds, idKey, { allowEmpty = false }
       throw new Error("AI 返回的问题缺少有效的论文依据。");
     }
     return { question: group.question.slice(0, 300), focus: typeof group.focus === "string" ? group.focus.slice(0, 1600) : "",
+      ...Object.fromEntries(['pattern', 'approaches', 'gaps'].filter(key => typeof group[key] === 'string').map(key => [key, group[key].slice(0, 1600)])),
       [idKey]: [...new Set(group[idKey])] };
   });
 }

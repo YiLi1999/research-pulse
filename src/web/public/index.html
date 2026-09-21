@@ -12,8 +12,8 @@
 <section class="toolbar"><div class="toolbar-side"><div><label data-i18n="journalLabel">选择期刊</label><select id="journal"><option value="">全部期刊</option></select></div><div><label data-i18n="window">时间窗口</label><select id="days"><option value="7">近 7 天</option><option value="30">近 30 天</option><option value="90">近 90 天</option><option value="9999">全部</option></select></div><button id="clear" data-i18n="clear">清空筛选（保留权重）</button></div></section>
 <div class="section-head"><div><p>CRAWLED JOURNAL DATA / 7 DAYS</p><h2 data-i18n="paperHeading">最近 7 天期刊论文</h2><small data-i18n="paperSub">包含 accepted 与 published；点击标题查看原文</small></div><div class="list-controls"><select id="sort"><option value="rank">关键词 Rank：高到低</option><option value="date-desc">时间：最新优先</option><option value="date-asc">时间：最早优先</option></select><input id="search" type="search" placeholder="搜索标题、作者或摘要" data-i18n-placeholder="search"></div></div><div id="journalSummary" class="journal-summary"></div><div id="paperList" class="paper-list"></div></section>
 <section id="overview" class="view"><article class="panel questions">
-  <div class="panel-head"><div><p>WHAT MATTERS NOW / LAST 7 DAYS</p><h2 id="concernTitle">大家最近在解决</h2></div><span class="concern-window">7 DAYS</span></div>
-  <p id="concernIntro" class="concern-intro">选择领域后点击分析，归纳近7天论文共同关注的科学问题，并查看对应论文。</p>
+  <div class="panel-head"><div><p>RESEARCH TRENDS / LAST 7 DAYS</p><h2 id="concernTitle">近7天研究趋势</h2></div><span class="concern-window">7 DAYS</span></div>
+  <p id="concernIntro" class="concern-intro">分析所选范围全部论文，归纳最多5个主要研究方向，比较共同动向、主要路径与瓶颈，并查看依据论文。</p>
   <section class="field-overview" aria-labelledby="fieldOverviewTitle">
     <h3 id="fieldOverviewTitle">先看各领域发文量</h3>
     <p id="fieldOverviewNote" class="concern-meta"></p>
@@ -32,11 +32,11 @@
     <div class="trend-api-actions"><button id="checkTrendCache" type="button" disabled>检查我的缓存（不调用 AI）</button><button id="clearTrendApi" type="button">清除 API Key</button><button id="reloadTrendOptions" type="button" hidden>重新读取范围</button></div>
     <p id="trendApiStatus" class="concern-meta" role="status" aria-live="polite">请填写 API 地址、API Key 和模型名称。</p>
   </fieldset>
-  <h3 id="concernSelectionTitle">选择感兴趣的领域，再分析共同问题</h3>
+  <h3 id="concernSelectionTitle">选择感兴趣的领域，再归纳研究趋势</h3>
   <div class="concern-controls">
     <label for="trendMajor"><span id="trendMajorLabel">大领域</span><select id="trendMajor" disabled><option value="">全部领域</option></select></label>
     <label for="trendMinor"><span id="trendMinorLabel">小领域</span><select id="trendMinor" disabled><option value="">全部小领域</option></select></label>
-    <button id="analyzeConcerns" type="button" disabled>分析近7天关注问题</button>
+    <button id="analyzeConcerns" type="button" disabled>分析近7天研究趋势</button>
   </div>
   <p id="concernScope" class="concern-meta">正在读取分析范围…</p>
   <p id="concernModel" class="concern-meta"></p>

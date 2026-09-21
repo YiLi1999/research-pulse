@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { PAPER_ANALYSIS_VERSION } from './incrementalConcernsCore.js';
-export { PAPER_ANALYSIS_VERSION, validPaperNotes, analyzeIncrementalConcerns } from './incrementalConcernsCore.js';
+export { PAPER_ANALYSIS_VERSION, TREND_SYNTHESIS_VERSION, validPaperNotes, analyzeIncrementalConcerns } from './incrementalConcernsCore.js';
 
 export function paperAnalysisKey(paper, engineSignature) {
   const clean = value => String(value || '').replace(/\s+/g, ' ').trim();

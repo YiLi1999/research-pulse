@@ -188,7 +188,7 @@ test('explicitly empty synthesis is a completed uncertain result without prevent
   assert.match(fixture.writes[0], /^report:/);
 });
 
-test('oversized valid synthesis keeps the 10 most supported questions without another model request', async () => {
+test('oversized valid synthesis keeps the 5 most supported trends when they cover all papers, without another model request', async () => {
   const fixture = cachedFixture(prompt => ({ summary: '模型返回15个有依据的问题。', questions:
     prompt.candidates.map((candidate, index) => ({
       question: `研究问题 ${index + 1}？`, focus: '依据已缓存的逐篇分析。', count: 99999,
@@ -197,11 +197,11 @@ test('oversized valid synthesis keeps the 10 most supported questions without an
   }));
   const completed = await analyze(fixture.client);
   assert.equal(completed.status, 'completed');
-  assert.equal(completed.report.questions.length, 10);
+  assert.equal(completed.report.questions.length, 5);
   assert.deepEqual(completed.report.questions.map(question => question.question),
-    Array.from({ length: 10 }, (_, index) => `研究问题 ${15 - index}？`));
+    Array.from({ length: 5 }, (_, index) => `研究问题 ${15 - index}？`));
   assert.deepEqual(completed.report.questions.map(question => question.count),
-    Array.from({ length: 10 }, (_, index) => 15 - index));
+    Array.from({ length: 5 }, (_, index) => 15 - index));
   for (const question of completed.report.questions) {
     assert.equal(new Set(question.papers.map(paper => paper.id)).size, question.count);
     assert.equal(question.share, Math.round(question.count / 15 * 1000) / 10);
@@ -209,7 +209,10 @@ test('oversized valid synthesis keeps the 10 most supported questions without an
   assert.equal(completed.report.coverage.supportedCount, 15);
   assert.equal(completed.report.incremental.cached, 15);
   assert.equal(completed.report.incremental.analyzed, 0);
-  assert.match(completed.report.warning, /10/);
+  assert.equal(completed.report.coverage.analyzedCount, 15);
+  assert.equal(completed.report.coverage.unassignedCount, 0);
+  assert.equal(completed.report.synthesis.complete, true);
+  assert.match(completed.report.warning, /5/);
   assert.equal(fixture.calls.length, 1, 'local ranking must not make an additional paid merge request');
   assertOnlySynthesis(fixture.calls[0]);
   assert.deepEqual([...fixture.records].filter(([key]) => key.startsWith('paper:')), fixture.initialNotes);
@@ -226,7 +229,7 @@ test('oversized valid synthesis keeps the 10 most supported questions without an
   assert.equal(fixture.writes.length, 1);
 });
 
-test('oversized synthesis validates evidence beyond the first 10 questions before reducing output', async () => {
+test('oversized synthesis validates evidence beyond the first 5 trends before reducing output', async () => {
   const fixture = cachedFixture(prompt => ({ summary: '最后一个问题含伪造依据。', questions:
     Array.from({ length: 15 }, (_, index) => ({
       question: `研究问题 ${index + 1}？`, focus: '必须验证全部返回问题。',
@@ -243,4 +246,46 @@ test('oversized synthesis validates evidence beyond the first 10 questions befor
   assert.deepEqual(fixture.writes, []);
   assert.deepEqual([...fixture.records], fixture.initialNotes);
   assert.equal((await request(fixture.client, '/api/trends/options', { api })).report, null);
+});
+
+test('incomplete synthesis with a real partial trend remains retryable without losing any cached paper notes', async () => {
+  let recover = false;
+  const fixture = cachedFixture((prompt, call) => {
+    if (recover) return synthesisAnswer(prompt);
+    const selected = call === 1 ? prompt.candidates.slice(0, 4)
+      : [prompt.candidates.find(candidate => candidate.paperCount === 4)];
+    assert.ok(selected.every(Boolean), 'the supported partial trend survives into the next round');
+    return { summary: '目前只归纳出部分论文的共同方向。', questions: [{
+      question: '量子通信的可靠性', focus: '四篇论文提供共同依据，其余尚未汇总。',
+      groupIds: selected.map(candidate => candidate.id)
+    }] };
+  });
+  const partial = await analyze(fixture.client);
+  assert.equal(partial.status, 'completed', 'return a truthful partial result rather than discarding it');
+  assert.equal(partial.report.synthesis.complete, false);
+  assert.equal(partial.report.coverage.analyzedCount, 15);
+  assert.equal(partial.report.coverage.supportedCount, 4);
+  assert.equal(partial.report.coverage.unassignedCount, 11);
+  assert.equal(partial.report.unassignedPapers.length, 11);
+  assert.ok(partial.report.warning);
+  assert.ok(fixture.calls.length <= 6);
+  assert.deepEqual(fixture.writes, [], 'a partial trend must not be persisted as a completed report');
+  assert.deepEqual([...fixture.records], fixture.initialNotes);
+
+  const options = await request(fixture.client, '/api/trends/options', { api });
+  assert.equal(options.report, null);
+  assert.deepEqual(options.incremental, { cached: 15, pending: 0, total: 15 });
+  const callsBeforeRetry = fixture.calls.length;
+  recover = true;
+  const recovered = await analyze(createVisitorClient(fixture.dependencies));
+  assert.equal(recovered.status, 'completed');
+  assert.equal(recovered.report.synthesis.complete, true);
+  assert.equal(recovered.report.coverage.supportedCount, 15);
+  assert.equal(recovered.report.coverage.unassignedCount, 0);
+  assert.equal(recovered.report.incremental.analyzed, 0);
+  assert.equal(fixture.calls.length, callsBeforeRetry + 1);
+  assertOnlySynthesis(fixture.calls.at(-1));
+  assert.equal(fixture.writes.length, 1);
+  assert.match(fixture.writes[0], /^report:/);
+  assert.deepEqual([...fixture.records].filter(([key]) => key.startsWith('paper:')), fixture.initialNotes);
 });

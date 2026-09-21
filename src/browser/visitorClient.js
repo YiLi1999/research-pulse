@@ -1,5 +1,5 @@
 import { prepareConcerns, ruleConcernReport } from "../analyzer/concernAnalyzer.js";
-import { analyzeIncrementalConcerns, validPaperNotes, PAPER_ANALYSIS_VERSION } from "../analyzer/incrementalConcernsCore.js";
+import { analyzeIncrementalConcerns, validPaperNotes, PAPER_ANALYSIS_VERSION, TREND_SYNTHESIS_VERSION } from "../analyzer/incrementalConcernsCore.js";
 import { rankPapersByRelevance, normalizeKeywordWeights, SCORING_RULE } from "../scorer/scoringCore.js";
 import { createAnalysisStorage } from "./analysisStorage.js";
 
@@ -55,7 +55,7 @@ export function createVisitorClient({ fetch: network = globalThis.fetch.bind(glo
       const saved = await storage.get(key);
       if (validPaperNotes(saved)) notes.set(paper.ref, saved);
     }));
-    const reportKey = api ? "report:" + await digest({ version: 1, engine, scope: prepared.scope,
+    const reportKey = api ? "report:" + await digest({ version: TREND_SYNTHESIS_VERSION, engine, scope: prepared.scope,
       start: prepared.window.start, end: prepared.window.end, timezone: prepared.window.timezone, coverage: prepared.coverage,
       papers: prepared.papers.map(p => [p.id, p.title, p.abstract, p.date, p.submittedAt, p.url, p.arxivUrl, p.journal_display, p.journal, p.source]) }) : null;
     return { api, data, prepared, notes, paperKeys, reportKey };
@@ -93,7 +93,7 @@ export function createVisitorClient({ fetch: network = globalThis.fetch.bind(glo
       job.report.lastRefreshAt = data.state?.lastRefreshAt || null;
       job.report.limitations = job.report.limitations.map(text => text.replace("本机已抓取", "本站共享数据中"));
       // Keep paper notes, but let visitors explicitly retry an inconclusive synthesis.
-      if ((job.report.questions.length || !prepared.papers.length) && !await storage.set(reportKey, job.report)) {
+      if (((job.report.questions.length && job.report.synthesis?.complete !== false) || !prepared.papers.length) && !await storage.set(reportKey, job.report)) {
         job.report.warning = [job.report.warning, "浏览器未能持久保存报告；关闭页面后可能需要重新分析。"].filter(Boolean).join(" ");
       }
       job.status = "completed";

@@ -5,7 +5,7 @@ import { loadPapers, loadState } from "../store/repository.js";
 import { readJson, writeJsonAtomic } from "../utils/fs.js";
 import { getConcernEngine } from "./concernEngine.js";
 import { prepareConcerns, ruleConcernReport } from "../analyzer/concernAnalyzer.js";
-import { analyzeIncrementalConcerns } from "../analyzer/incrementalConcerns.js";
+import { analyzeIncrementalConcerns, TREND_SYNTHESIS_VERSION } from "../analyzer/incrementalConcerns.js";
 import { createPaperAnalysisCache } from "./paperAnalysisCache.js";
 import { logger } from "../utils/logger.js";
 
@@ -27,7 +27,7 @@ export function createConcernService(deps = {}) {
       : path.join(storageDir, "visitors", createHash("sha256").update(ownerId).digest("hex"));
     const useLlm = engine.available;
     // Ranking changes do not invalidate the analysis; content and scope changes do.
-    const key = createHash("sha256").update(JSON.stringify({ version: 3,
+    const key = createHash("sha256").update(JSON.stringify({ version: 3, synthesisVersion: TREND_SYNTHESIS_VERSION,
       scope: prepared.scope, start: prepared.window.start, end: prepared.window.end,
       timezone: prepared.window.timezone, engine: engine.signature, coverage: prepared.coverage,
       papers: prepared.papers.map(p => [p.id, p.title, p.abstract, p.keywords, p.date, p.submittedAt, p.url, p.arxivUrl, p.journal_display, p.journal, p.source])
@@ -86,7 +86,7 @@ export function createConcernService(deps = {}) {
       report.provider = data.engine.provider;
       if (report.mode === "llm") report.model = data.engine.label;
       // Failures and inconclusive synthesis must remain explicitly retryable.
-      if ((report.mode === "llm" && report.questions.length) || !data.useLlm || !data.prepared.papers.length) {
+      if ((report.mode === "llm" && report.questions.length && report.synthesis?.complete !== false) || !data.useLlm || !data.prepared.papers.length) {
         try { await writeJsonAtomic(data.cacheFile, report); }
         catch { report.warning = [report.warning, "结果已生成，但本地缓存保存失败；关闭页面后可能需要重新分析。"].filter(Boolean).join(" "); }
       }

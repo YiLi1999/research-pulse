@@ -13,8 +13,17 @@ import { createServer } from './server.js';
 import { visitorContext } from './visitorContext.js';
 
 const api = { baseUrl: 'https://api.example.com/v1', apiKey: 'visitor-secret-do-not-save', model: 'visitor-model' };
-const answer = { papers: [{ id: 'p1', questions: [{ question: '如何改善逻辑错误率？', focus: '改进表面码解码。' }] }] };
-const samplePapers = () => [{ id: 'example', title: 'Quantum error correction', abstract: 'Surface code decoders improve reliability.', date: '2026-08-27', source: 'arxiv' }];
+function answer(prompt) {
+  return prompt.mode === 'paper-extraction'
+    ? { papers: prompt.papers.map(paper => ({ id: paper.id,
+      questions: [{ question: '如何改善逻辑错误率？', focus: '改进表面码解码。' }] })) }
+    : { summary: '多篇论文共同研究表面码纠错可靠性。', questions: [{ question: '如何改善逻辑错误率？',
+      focus: '两篇论文从不同解码方法研究逻辑错误率。', groupIds: prompt.candidates.map(candidate => candidate.id) }] };
+}
+const samplePapers = () => [
+  { id: 'example', title: 'Quantum error correction', abstract: 'Surface code decoders improve reliability.', date: '2026-08-27', source: 'arxiv' },
+  { id: 'example-two', title: 'Surface code decoding with correlated noise', abstract: 'Noise-aware decoding reduces logical error rates.', date: '2026-08-28', source: 'arxiv' }
+];
 
 async function fixture(t, { chat, publicOrigin = '', papers = samplePapers() } = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'visitor-security-'));
@@ -25,7 +34,8 @@ async function fixture(t, { chat, publicOrigin = '', papers = samplePapers() } =
     getEngine: credentials => getConcernEngine(credentials, { fetch: async (_url, options) => {
       state.calls++;
       assert.equal(options.headers.Authorization, `Bearer ${api.apiKey}`);
-      const result = chat ? await chat() : answer;
+      const prompt = JSON.parse(JSON.parse(options.body).messages.at(-1).content);
+      const result = chat ? await chat(prompt) : answer(prompt);
       return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(result) } }] }));
     } })
   });
@@ -90,7 +100,7 @@ test('options never calls a model and visitor cookies isolate running jobs, repo
   let release;
   const gate = new Promise(resolve => { release = resolve; });
   t.after(() => release());
-  const { url, concerns, state, directory } = await fixture(t, { chat: async () => { await gate; return answer; } });
+  const { url, concerns, state, directory } = await fixture(t, { chat: async prompt => { await gate; return answer(prompt); } });
   const first = await visitor(url), second = await visitor(url);
   assert.notEqual(first.cookie, second.cookie);
   const options = await jsonPost(url, '/api/trends/options', { api }, first.cookie);
@@ -115,16 +125,19 @@ test('options never calls a model and visitor cookies isolate running jobs, repo
   await completed(concerns, firstJob, first.ownerId);
   const own = await (await jsonPost(url, '/api/trends/options', { api }, first.cookie)).json();
   const other = await (await jsonPost(url, '/api/trends/options', { api }, second.cookie)).json();
-  assert.equal(own.report.mode, 'llm'); assert.equal(own.incremental.cached, 1);
+  assert.equal(own.report.mode, 'llm'); assert.equal(own.incremental.cached, 2);
+  assert.equal(own.report.synthesis.complete, true);
+  assert.equal(own.report.questions[0].count, 2);
+  assert.equal(state.calls, 2, 'the first visitor extracts two papers, then synthesizes their shared trend');
   assert.equal(other.report, null); assert.equal(other.incremental.cached, 0);
   const noCredentials = await (await fetch(url + '/api/trends/options', { headers: { Cookie: first.cookie } })).json();
   assert.equal(noCredentials.report, null); assert.equal(noCredentials.llmAvailable, false);
   const secondStarted = await (await jsonPost(url, '/api/trends/analyze', { api }, second.cookie)).json();
   await completed(concerns, secondStarted, second.ownerId);
-  assert.equal(state.calls, 2);
+  assert.equal(state.calls, 4, 'the second visitor cannot reuse the first visitor\'s extraction or report');
   const files = await readdir(directory, { recursive: true });
   const savedJson = await Promise.all(files.filter(file => file.endsWith('.json')).map(file => readFile(path.join(directory, file), 'utf8')));
-  assert.ok(savedJson.length >= 4);
+  assert.ok(savedJson.length >= 6);
   assert.doesNotMatch(savedJson.join('\n'), /visitor-secret-do-not-save/);
 });
 

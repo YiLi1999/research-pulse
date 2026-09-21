@@ -16,7 +16,7 @@ test("ranking controls belong only to papers and overview contains the questions
   assert.equal($(".rank-settings").closest(".view").attr("id"), "papers");
   assert.equal($("#keywordForm").closest(".view").attr("id"), "papers");
   assert.equal($("#overview > .questions #questions").length, 1);
-  assert.deepEqual($("#overview h2").map((_, el) => $(el).text()).get(), ["大家最近在解决"]);
+  assert.deepEqual($("#overview h2").map((_, el) => $(el).text()).get(), ["近7天研究趋势"]);
   assert.equal($("#overview").children().length, 1);
   assert.equal($("#topics, #stats, #sources, #trendChart").length, 0);
   assert.equal($("#network, [data-view=network]").length, 0);

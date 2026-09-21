@@ -15,7 +15,9 @@ function modelAnswer(body) {
   const input = JSON.parse(body.messages.at(-1).content);
   return input.papers ? { papers: input.papers.map(paper => ({ id: paper.id,
     questions: [{ question: '如何提高实验与计算精度？', focus: paper.title }] })) }
-    : { summary: '依据当前论文汇总的研究问题。', questions: [{ question: '如何提高实验与计算精度？', focus: '结合逐篇证据。', groupIds: input.candidates.map(candidate => candidate.id) }] };
+    : { summary: '依据当前论文归纳的主要研究方向。', questions: [{ question: '提高实验与计算的精度和可靠性',
+      pattern: '多篇论文共同关注受限资源下的计算可靠性。', approaches: '比较编码设计、控制策略与算法路径。',
+      gaps: '统一验证基准与规模扩展仍有待解决。', focus: '结合逐篇证据。', groupIds: input.candidates.map(candidate => candidate.id) }] };
 }
 
 async function setup(t, chat, { papers: inputPapers, now } = {}) {
@@ -274,7 +276,7 @@ test('Vercel browser: own API, IndexedDB cache, scope reuse and isolated visitor
   await page.waitForFunction(() => document.querySelector('#concernIncremental').textContent.includes('变化的 2 篇'));
   assert.equal(requests.length, 0);
   await page.locator('#analyzeConcerns').click();
-  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('分析完成'));
+  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('趋势分析完成'));
   assert.equal(requests.length, 2, 'two-paper analysis extracts once and synthesizes once');
   assert.equal(extractionTitles.length, 2);
   for (const body of requests) {
@@ -300,7 +302,7 @@ test('Vercel browser: own API, IndexedDB cache, scope reuse and isolated visitor
   await page.locator('#checkTrendCache').click();
   await page.waitForFunction(() => document.querySelector('#concernIncremental').textContent.includes('本次可复用 2 篇'));
   await page.locator('#analyzeConcerns').click();
-  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('分析完成'));
+  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('趋势分析完成'));
   assert.equal(extractionTitles.length, 3, 'changing to all fields only extracts the newly included paper');
   assert.ok((await page.locator('#questions').innerText()).includes('复用 2 篇 · 新分析 1 篇'));
   assert.equal(requests.length, 4);
@@ -331,6 +333,92 @@ test('Vercel browser: own API, IndexedDB cache, scope reuse and isolated visitor
   assert.equal(await page.locator('#trendApiTitle').innerText(), 'Analyze with your own API');
   assert.ok((await page.locator('#trendApiPrivacy').innerText()).includes('this browser'));
   assert.deepEqual(errors, []); assert.deepEqual(second.errors, []);
+});
+
+test('Vercel browser: all 25 papers are analyzed while broad directions and isolated evidence remain separate', { timeout: 60000 }, async t => {
+  const now = '2026-09-21T05:00:00.000Z';
+  const papers = Array.from({ length: 25 }, (_, index) => ({ id: `q${index + 1}`,
+    title: index === 24 ? 'Quantum isolated geometry proposal' : `Quantum error correction study ${index + 1}`,
+    abstract: index === 24 ? 'An isolated geometry proposal.' : `Comparison of quantum error correction approach ${index + 1}.`,
+    source: 'arXiv', date: '2026-09-21' }));
+  const extracted = [];
+  let modelCalls = 0;
+  const { newPage } = await setup(t, (request, response) => {
+    modelCalls++;
+    const input = JSON.parse(request.body.messages.at(-1).content);
+    if (input.papers) {
+      extracted.push(...input.papers.map(paper => paper.title));
+      response.json({ result: { papers: input.papers.map(paper => ({ id: paper.id, questions: [{
+        question: paper.title.includes('isolated') ? '孤立的几何方案' : '如何降低量子纠错开销？', focus: paper.abstract
+      }] })) } });
+      return;
+    }
+    const grouped = input.candidates.filter(candidate => candidate.question !== '孤立的几何方案');
+    response.json({ result: { summary: '本周样本主要围绕量子纠错资源效率，比较编码与译码两条路径。',
+      questions: [{ question: '降低量子纠错的资源开销', pattern: '多篇研究共同推进有限资源下的可靠计算。',
+        approaches: '编码设计与译码算法是两条主要路径。', gaps: '共同瓶颈是规模扩展和统一评测。',
+        groupIds: grouped.map(candidate => candidate.id) }],
+      unassignedGroupIds: input.candidates.filter(candidate => candidate.question === '孤立的几何方案').map(candidate => candidate.id) } });
+  }, { papers, now });
+  const { page, errors } = await newPage();
+  await fillApi(page);
+  await page.locator('#analyzeConcerns').click();
+  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('趋势分析完成'));
+  assert.equal(new Set(extracted).size, 25, 'every selected paper is read, including papers beyond the old visible ten');
+  assert.equal(extracted.length, 25);
+  assert.equal(await page.locator('.concern-coverage').innerText(), '完整分析 25/25 篇');
+  assert.equal(await page.locator('.concern-directions-title').innerText(), '主要研究方向（1 个）');
+  assert.equal(await page.locator('#questions .concern-question').count(), 1);
+  assert.match(await page.locator('.concern-question').innerText(), /主要路径与差异/);
+  assert.match(await page.locator('.concern-question').innerText(), /共同瓶颈/);
+  assert.equal(await page.locator('.concern-question .concern-evidence li').count(), 24);
+  assert.equal(await page.locator('.concern-unassigned li').count(), 1);
+  assert.equal(await page.locator('.concern-unassigned').getAttribute('open'), null);
+  const afterAnalysis = modelCalls;
+  await page.reload();
+  await page.waitForFunction(() => !document.querySelector('#checkTrendCache').disabled);
+  await page.locator('#checkTrendCache').click();
+  await page.waitForSelector('.concern-coverage');
+  assert.equal(await page.locator('.concern-coverage').innerText(), '完整分析 25/25 篇');
+  assert.equal(modelCalls, afterAnalysis, 'restoring the complete report keeps every analyzed paper without paid calls');
+  assert.deepEqual(errors, []);
+});
+
+test('Vercel browser: per-paper output is marked incomplete and can retry synthesis using saved notes', { timeout: 60000 }, async t => {
+  let useSharedTrend = false;
+  const requests = [];
+  const { newPage } = await setup(t, (request, response) => {
+    requests.push(request.body);
+    const input = JSON.parse(request.body.messages.at(-1).content);
+    const result = modelAnswer(request.body);
+    if (input.candidates && !useSharedTrend) {
+      result.questions = input.candidates.map(candidate => ({ question: candidate.question, focus: candidate.focus, groupIds: [candidate.id] }));
+    }
+    response.json({ result });
+  });
+  const { page, errors } = await newPage();
+  await page.locator('.field-card[data-field="quantum"]').click();
+  await page.waitForFunction(() => document.querySelector('#concernScope').textContent.includes('当前匹配 2 篇'));
+  await fillApi(page);
+  await page.locator('#analyzeConcerns').click();
+  await page.waitForFunction(() => document.querySelector('#concernStatus').dataset.state === 'warning'
+    && !document.querySelector('#analyzeConcerns').disabled);
+  assert.match(await page.locator('#concernStatus').innerText(), /趋势汇总未充分完成/);
+  assert.equal(await page.locator('#analyzeConcerns').innerText(), '重试趋势归纳');
+  assert.equal(await page.locator('.concern-coverage').innerText(), '已读取 2/2 篇 · 趋势汇总未充分完成');
+  assert.equal(await page.locator('.concern-question').count(), 0, 'single-paper groups must not become trend cards');
+  assert.equal(await page.locator('.concern-unassigned li').count(), 2);
+  assert.equal(requests.length, 2, 'incomplete synthesis cannot trigger an automatic paid retry');
+  const incompleteStorage = await storageContents(page);
+  assert.equal(incompleteStorage.records.filter(row => row.key.startsWith('paper:')).length, 2);
+  assert.equal(incompleteStorage.records.filter(row => row.key.startsWith('report:')).length, 0);
+  useSharedTrend = true;
+  await page.locator('#analyzeConcerns').click();
+  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('趋势分析完成'));
+  assert.equal(requests.length, 3, 'manual retry only synthesizes the already saved paper notes');
+  assert.equal(await page.locator('.concern-coverage').innerText(), '完整分析 2/2 篇');
+  assert.equal(await page.locator('.concern-question').count(), 1);
+  assert.deepEqual(errors, []);
 });
 
 test('Vercel browser: malformed synthesis preserves notes and an oversized retry succeeds without extra calls', { timeout: 60000 }, async t => {
@@ -373,13 +461,13 @@ test('Vercel browser: malformed synthesis preserves notes and an oversized retry
   await page.waitForFunction(() => document.querySelector('#concernIncremental').textContent.includes('本次可复用 2 篇'));
   assert.equal(requests.length, 2, 'reloading and checking retained notes do not invoke the model');
   await page.locator('#analyzeConcerns').click();
-  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('分析完成'));
+  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('趋势分析完成'));
   assert.equal(requests.length, 3, 'manual retry makes only the synthesis request');
   assert.equal(requests.filter(body => JSON.parse(body.messages.at(-1).content).papers).length, 1);
   assert.equal(synthesisCalls, 2);
   assert.ok((await page.locator('#questions').innerText()).includes('复用 2 篇 · 新分析 0 篇'));
-  assert.equal(await page.locator('#questions .concern-question').count(), 10);
-  assert.match(await page.locator('#questions').innerText(), /筛选没有额外调用 API/);
+  assert.equal(await page.locator('#questions .concern-question').count(), 5);
+  assert.match(await page.locator('#questions .concern-coverage').innerText(), /完整分析 2\/2 篇/);
   const afterRetry = await storageContents(page);
   assert.deepEqual(afterRetry.records.filter(row => row.key.startsWith('paper:')), savedNotes);
   assert.equal(afterRetry.records.filter(row => row.key.startsWith('report:')).length, 1);
@@ -413,7 +501,7 @@ test('Vercel browser: clearing an in-flight key stops later calls and a new key 
   const nextApi = { ...api, apiKey: 'sk-vercel-secret-visitor-two' };
   await fillApi(page, nextApi);
   await page.locator('#analyzeConcerns').click();
-  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('分析完成'));
+  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('趋势分析完成'));
   assert.equal(requests.length, 3);
   assert.deepEqual(requests.slice(1).map(request => request.api.apiKey), [nextApi.apiKey, nextApi.apiKey]);
   const stored = await storageContents(page);

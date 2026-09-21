@@ -61,7 +61,7 @@ test('browser: visitor API settings persist locally; field counts and incrementa
   await page.waitForFunction(() => document.querySelector('#concernIncremental').textContent.includes('变化的 2 篇'));
   assert.equal(calls, 0, 'checking cache must not invoke AI');
   await page.locator('#analyzeConcerns').click();
-  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('分析完成'));
+  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('趋势分析完成'));
   assert.equal(extractionPapers.length, 2);
   assert.ok((await page.locator('#concernIncremental').innerText()).includes('本次可复用 2 篇'));
   const before = calls;
@@ -84,7 +84,7 @@ test('browser: visitor API settings persist locally; field counts and incrementa
   await page.locator('#checkTrendCache').click();
   await page.waitForFunction(() => document.querySelector('#concernIncremental').textContent.includes('变化的 1 篇'));
   await page.locator('#analyzeConcerns').click();
-  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('分析完成'));
+  await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('趋势分析完成'));
   assert.equal(extractionPapers.length, 3, 'only the added paper is sent for extraction');
   assert.ok((await page.locator('#questions').innerText()).includes('复用 2 篇 · 新分析 1 篇'));
   const storage = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }));
