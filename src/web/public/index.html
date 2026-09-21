@@ -22,7 +22,7 @@
   </section>
   <fieldset class="trend-api" aria-describedby="trendApiPrivacy trendApiHelp">
     <legend id="trendApiTitle">使用你自己的 API 分析</legend>
-    <p id="trendApiPrivacy" class="concern-meta">API Key 仅用于当前页面和服务端本次请求 / 任务内存，不写入浏览器或服务器存储；刷新或离开页面后需重新输入。模型调用费用由你的 API 账户承担。</p>
+    <p id="trendApiPrivacy" class="concern-meta">API 地址、API Key 和模型名称自动保存在当前浏览器，下次打开自动填入。点击“清除 API Key”可删除保存的密钥。配置不会自动调用模型；密钥不写入服务器数据文件或日志，调用费用由你的 API 账户承担。</p>
     <div class="trend-api-fields">
       <label for="trendBaseUrl"><span id="trendBaseUrlLabel">API 地址（Base URL）</span><input id="trendBaseUrl" type="url" inputmode="url" placeholder="https://api.example.com/v1" autocomplete="off" spellcheck="false" maxlength="2048" aria-describedby="trendApiHelp" required></label>
       <label for="trendApiKey"><span>API Key</span><input id="trendApiKey" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false" autocapitalize="none" maxlength="4096" required></label>

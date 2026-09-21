@@ -11,7 +11,7 @@ const strings = {
     failed: '加载失败，请点击重试。', loadRetry: '重试加载', method: '分析方法与范围说明',
     rules: '规则统计 · 非 AI 归纳', llm: 'AI 归纳 · 基于标题与摘要',
     evidence: '查看依据论文', noQuestions: '没有足够依据归纳共同问题。', abstract: '摘要片段', missing: '无摘要，依据仅为标题。',
-    caveat: '分析范围为所选时区今天及前6天，截止点击时；排除旧数据、未来日期和无有效日期的条目。同一论文可跨领域。统计使用期刊栏目、标题、摘要和关键词规则，不调用 AI。AI 首次分析读取所选领域全部标题与可用摘要；以后仅分析未缓存或标题、摘要变化的论文，逐篇保存后重新汇总。跨日期和领域可复用；切换模型或分析方法会重新读取。旧版仅有整份报告，无法作为逐篇缓存。每位访客须填写自己的 API 地址、Key 和模型。只有点击分析才会调用模型，费用由该 API 账户承担。Key 仅在当前页面和服务端请求 / 任务内存中使用，不写入持久存储；刷新或离开页面后需重填。清除 Key 会停止本页跟踪，已提交的服务端任务仍可能完成并产生费用。API 调用失败时会明确标记失败，不将规则统计当作 AI 结论。分析结果保存在服务端访客空间，同一访客、数据、领域与引擎可复用；重新输入相同 API 后可手动检查缓存。'
+    caveat: '分析范围为所选时区今天及前6天，截止点击时；排除旧数据、未来日期和无有效日期的条目。同一论文可跨领域。统计使用期刊栏目、标题、摘要和关键词规则，不调用 AI。AI 首次分析读取所选领域全部标题与可用摘要；以后仅分析未缓存或标题、摘要变化的论文，逐篇保存后重新汇总。跨日期和领域可复用；切换模型或分析方法会重新读取。旧版仅有整份报告，无法作为逐篇缓存。每位访客须填写自己的 API 地址、Key 和模型。只有点击分析才会调用模型，费用由该 API 账户承担。API 地址、Key 和模型保存在当前浏览器，下次打开自动填入；Key 不写入服务器数据文件或日志。清除 Key 会删除浏览器保存的密钥并停止本页跟踪，已提交的服务端任务仍可能完成并产生费用。API 调用失败时会明确标记失败，不将规则统计当作 AI 结论。分析结果保存在服务端访客空间，同一访客、数据、领域与引擎可复用；恢复相同 API 配置后可手动检查缓存，不会自动调用模型。'
   },
   en: { title: 'Questions researchers are tackling', major: 'Broad field', minor: 'Subfield', all: 'All fields', allMinor: 'All subfields',
     analyze: 'Analyze the last 7 days', analyzing: 'Analyzing…', retry: 'Retry AI analysis',
@@ -22,18 +22,16 @@ const strings = {
     failed: 'Loading failed. Please retry.', loadRetry: 'Retry loading', method: 'Method and scope',
     rules: 'Rule statistics · not AI synthesis', llm: 'AI synthesis · titles and abstracts', evidence: 'Supporting papers',
     noQuestions: 'Insufficient evidence to identify shared questions.', abstract: 'Abstract excerpt', missing: 'No abstract; title evidence only.',
-    caveat: 'The window includes today and the previous six days in the configured time zone, up to the request time. Old, future-dated and undated records are excluded. Fields can overlap. Counts use local classification rules without AI. Initial analysis reads every selected title and abstract. Later runs only read uncached or changed content, save per-paper notes and synthesize the current seven-day window. Notes can be reused across dates and scopes; model or extraction changes invalidate them. Legacy whole reports are not per-paper caches. Each visitor supplies their own API base URL, key and model. Only clicking Analyze calls the model, billed to that API account. Keys are used only in this page and in server request/job memory, never persisted. Reloading or leaving clears the key. Clearing a key stops this page from following the job; an already submitted server job may still finish and incur charges. API failures are explicitly identified. Successful results are saved in your visitor space on the server and reused for unchanged data, scope and engine. Re-enter the same API configuration and explicitly check the cache to restore a result.'
+    caveat: 'The window includes today and the previous six days in the configured time zone, up to the request time. Old, future-dated and undated records are excluded. Fields can overlap. Counts use local classification rules without AI. Initial analysis reads every selected title and abstract. Later runs only read uncached or changed content, save per-paper notes and synthesize the current seven-day window. Notes can be reused across dates and scopes; model or extraction changes invalidate them. Legacy whole reports are not per-paper caches. Each visitor supplies their own API base URL, key and model. Only clicking Analyze calls the model, billed to that API account. The API address, key and model are saved in this browser and restored on your next visit. Keys are not saved in server data files or logs. Clearing a key removes it from browser storage and stops this page from following the job; an already submitted server job may still finish and incur charges. API failures are explicitly identified. Successful results are saved in your visitor space on the server and reused for unchanged data, scope and engine. With the same API configuration restored, explicitly check the cache to restore a result. Restoring settings does not call the model.'
   }
 };
 
 if (usesBrowserRuntime()) {
   strings.zh.caveat = strings.zh.caveat
-    .replace('Key 仅在当前页面和服务端请求 / 任务内存中使用，不写入持久存储', 'Key 仅在当前页面和单次接口转发请求内存中使用，不写入持久存储')
-    .replace('清除 Key 会停止本页跟踪，已提交的服务端任务仍可能完成并产生费用。', '刷新或离开页面会中断后续分析批次；已经发出的请求仍可能完成并产生费用。')
+    .replace('清除 Key 会删除浏览器保存的密钥并停止本页跟踪，已提交的服务端任务仍可能完成并产生费用。', '清除 Key 会删除浏览器保存的密钥。刷新、离开页面或清除 Key 会中断后续分析批次；已经发出的请求仍可能完成并产生费用。')
     .replace('分析结果保存在服务端访客空间，同一访客、数据、领域与引擎可复用', '逐篇分析与报告保存在当前浏览器，同一浏览器、数据、领域与引擎可复用');
   strings.en.caveat = strings.en.caveat
-    .replace('this page and in server request/job memory', 'this page and individual API forwarding requests')
-    .replace('Clearing a key stops this page from following the job; an already submitted server job may still finish and incur charges.', 'Reloading or leaving interrupts subsequent batches. An in-flight API request may still finish and incur charges.')
+    .replace('Clearing a key removes it from browser storage and stops this page from following the job; an already submitted server job may still finish and incur charges.', 'Clearing a key removes it from browser storage. Reloading, leaving or clearing a key interrupts subsequent batches. An in-flight API request may still finish and incur charges.')
     .replace('saved in your visitor space on the server', 'saved in this browser');
 }
 
@@ -80,12 +78,34 @@ export function mountConcernAnalysis({ lang = 'zh' } = {}) {
   let busy = false, ready = false, report = null, metadata = null, retryLoading = false;
   let restoreSelection = true, savedScope = {};
   try { savedScope = JSON.parse(localStorage.getItem('rp-trend-scope') || '{}') || {}; } catch { /* Use all fields. */ }
-  // API credentials deliberately have no storage path: only the live inputs and request/job memory.
-  apiKey.value = '';
+  const apiStorageKey = 'rp-trend-api';
+  let apiStorageFailed = false;
   const copy = () => strings[locale];
   const isZh = () => locale === 'zh';
   const api = () => ({ baseUrl: baseUrl.value.trim(), apiKey: apiKey.value.trim(), model: model.value.trim() });
   const scope = () => ({ majorField: major.value, minorField: minor.value });
+  function restoreApi() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(apiStorageKey) || '{}');
+      for (const [name, input] of [['baseUrl', baseUrl], ['apiKey', apiKey], ['model', model]]) {
+        input.value = typeof saved?.[name] === 'string' ? saved[name].slice(0, input.maxLength) : '';
+      }
+      apiStorageFailed = false;
+    } catch {
+      apiKey.value = '';
+      apiStorageFailed = true;
+    }
+  }
+  function saveApi({ clearKey = false } = {}) {
+    try {
+      // Remove the previous credential first so a failed settings write cannot
+      // restore the cleared key on the next visit.
+      if (clearKey) localStorage.removeItem(apiStorageKey);
+      localStorage.setItem(apiStorageKey, JSON.stringify(api()));
+      apiStorageFailed = false;
+    } catch { apiStorageFailed = true; }
+  }
+  restoreApi();
   function validApi() {
     const values = api();
     if (!values.apiKey || /\s/.test(values.apiKey) || !values.model || /[\r\n]/.test(values.model)) return false;
@@ -115,8 +135,10 @@ export function mountConcernAnalysis({ lang = 'zh' } = {}) {
     button.classList.toggle('loading', busy);
     output.setAttribute('aria-busy', String(busy));
     $('#fieldCards').querySelectorAll('button').forEach(card => { card.disabled = busy; });
-    $('#trendApiStatus').textContent = validApi()
-      ? isZh() ? '已填写。点击“分析”才会调用模型；也可以先免费检查已有缓存。' : 'Ready. Only Analyze calls the model; you can check your existing cache for free.'
+    $('#trendApiStatus').textContent = apiStorageFailed
+      ? isZh() ? '浏览器无法读取或更新配置缓存；旧配置可能仍保留。当前填写仍可使用，清除本站浏览器数据可删除旧配置。' : 'Browser settings could not be read or updated; previous settings may remain. You can use the current inputs. Clear this site’s browser data to remove previous settings.'
+      : validApi()
+      ? isZh() ? '已保存在当前浏览器，下次打开自动填入。点击“分析”才会调用模型；也可以先免费检查已有缓存。' : 'Saved in this browser and restored on your next visit. Only Analyze calls the model; you can check your existing cache for free.'
       : isZh() ? '请填写公网 HTTPS API 地址、API Key 和模型名称。' : 'Enter a public HTTPS API base URL, API key and model name.';
   }
   function renderFieldOverview() {
@@ -284,19 +306,19 @@ export function mountConcernAnalysis({ lang = 'zh' } = {}) {
       ['concernIntro', 'intro'], ['concernMethodLabel', 'method'], ['concernMethod', 'caveat']]) $('#' + id).textContent = copy()[key];
     const labels = isZh() ? {
       trendApiTitle: '使用你自己的 API 分析', trendBaseUrlLabel: 'API 地址（Base URL）', trendModelLabel: '模型名称',
-      trendApiPrivacy: 'API Key 仅用于当前页面和服务端本次请求 / 任务内存，不写入浏览器或服务器存储；刷新或离开页面后需重新输入。模型调用费用由你的 API 账户承担。',
+      trendApiPrivacy: 'API 地址、API Key 和模型名称自动保存在当前浏览器，下次打开自动填入。点击“清除 API Key”可删除保存的密钥。配置不会自动调用模型；密钥不写入服务器数据文件或日志，调用费用由你的 API 账户承担。',
       trendApiHelp: '填写你信任的 OpenAI 兼容服务商的公网 HTTPS 接口根地址（通常以 /v1 结尾）。Key 会经本站服务端转发给该地址。填写或切换领域不会调用 AI。',
       checkTrendCache: '检查我的缓存（不调用 AI）', clearTrendApi: '清除 API Key', reloadTrendOptions: '重新读取范围'
     } : {
       trendApiTitle: 'Analyze with your own API', trendBaseUrlLabel: 'API base URL', trendModelLabel: 'Model name',
-      trendApiPrivacy: 'Your key is used only in this page and server request/job memory, never saved in browser or server storage. Re-enter it after reloading or leaving. Model calls are billed to your API account.',
+      trendApiPrivacy: 'Your API address, key and model are saved in this browser and restored on your next visit. Clear API key removes the saved key. Restoring settings does not call the model. Keys are not saved in server data files or logs. Model calls are billed to your API account.',
       trendApiHelp: 'Use a trusted OpenAI-compatible provider with a public HTTPS base URL (usually ending in /v1). This server forwards your key to that address. Entering settings or changing fields does not call AI.',
       checkTrendCache: 'Check my cache (no AI call)', clearTrendApi: 'Clear API key', reloadTrendOptions: 'Reload scope'
     };
     if (usesBrowserRuntime()) {
       labels.trendApiPrivacy = isZh()
-        ? 'API Key 仅用于当前页面和单次接口转发请求内存，不写入浏览器或服务器存储。报告与逐篇结果保存在本浏览器。刷新或离开页面会清除 Key、中断后续批次；已发出的请求仍可能计费。费用由你的 API 账户承担。'
-        : 'Your key is used only in this page and individual API forwarding requests, never saved. Reports and per-paper notes stay in this browser. Reloading or leaving clears the key and interrupts subsequent batches; in-flight requests may still be billed to your API account.';
+        ? 'API 地址、API Key 和模型名称自动保存在当前浏览器，下次打开自动填入；“清除 API Key”会删除保存的密钥。报告与逐篇结果也保存在本浏览器。恢复配置不会自动调用模型；刷新或离开页面会中断后续分析批次，已发出的请求仍可能计费。密钥不写入服务器数据文件或日志。'
+        : 'Your API address, key and model are saved in this browser and restored on your next visit. Clear API key removes the saved key. Reports and per-paper notes also stay in this browser. Restoring settings does not call the model. Reloading or leaving interrupts subsequent batches; in-flight requests may still be billed to your API account. Keys are not saved in server data files or logs.';
     }
     Object.entries(labels).forEach(([id, text]) => { $('#' + id).textContent = text; });
     model.placeholder = isZh() ? '你的服务商提供的模型 ID' : 'Model ID from your provider';
@@ -304,16 +326,21 @@ export function mountConcernAnalysis({ lang = 'zh' } = {}) {
   }
   major.onchange = () => { minor.value = ''; saveSelection(); fillFields(); void refresh(); };
   minor.onchange = () => { saveSelection(); void refresh(); };
-  [baseUrl, apiKey, model].forEach(input => { input.oninput = configurationChanged; });
+  [baseUrl, apiKey, model].forEach(input => {
+    input.oninput = input.onchange = () => { saveApi(); configurationChanged(); };
+  });
   clearApi.onclick = () => {
-    const wasBusy = busy; apiKey.value = ''; configurationChanged();
+    const wasBusy = busy; apiKey.value = ''; saveApi({ clearKey: true }); configurationChanged();
     status.textContent = isZh()
-      ? `API Key 已从本页清除。${wasBusy ? usesBrowserRuntime() ? '已发出的请求仍可能完成并产生费用。' : '已提交的服务端任务仍可能完成并产生费用。' : ''}`
-      : `API key cleared from this page.${wasBusy ? usesBrowserRuntime() ? ' An in-flight request may still finish and incur charges.' : ' An already submitted server job may still finish and incur charges.' : ''}`;
+      ? `${apiStorageFailed ? 'API Key 已从本页清除，但浏览器缓存更新失败，请清除本站浏览器数据' : 'API Key 已从本页和浏览器缓存中删除；API 地址和模型名称已保留'}。${wasBusy ? usesBrowserRuntime() ? '已发出的请求仍可能完成并产生费用。' : '已提交的服务端任务仍可能完成并产生费用。' : ''}`
+      : `API key cleared from this page${apiStorageFailed ? ', but the browser cache could not be updated. Clear this site’s browser data' : ' and removed from browser storage; the API address and model are kept'}.${wasBusy ? usesBrowserRuntime() ? ' An in-flight request may still finish and incur charges.' : ' An already submitted server job may still finish and incur charges.' : ''}`;
   };
   // Also clear sensitive input when a page enters the browser back/forward cache.
   window.addEventListener('pagehide', () => { apiKey.value = ''; invalidateOperation(); });
-  window.addEventListener('pageshow', event => { if (event.persisted) configurationChanged(); });
+  window.addEventListener('pageshow', event => { if (event.persisted) { restoreApi(); configurationChanged(); } });
+  window.addEventListener('storage', event => {
+    if (event.key === apiStorageKey || event.key === null) { restoreApi(); configurationChanged(); }
+  });
   button.onclick = () => void run(); checkCache.onclick = () => void run(true); reloadOptions.onclick = () => void refresh();
   setLanguage(locale); void refresh();
   return { refresh, setLanguage };

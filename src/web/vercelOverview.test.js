@@ -45,9 +45,9 @@ async function setup(t, chat, { papers: inputPapers, now } = {}) {
   await once(server, 'listening');
   const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
   const address = `http://127.0.0.1:${server.address().port}`;
-  async function newPage({ timezoneId, view = 'overview' } = {}) {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, ...(timezoneId ? { timezoneId } : {}) });
-    await context.route('https://fonts.googleapis.com/**', route => route.abort());
+  async function newPage({ timezoneId, view = 'overview', context: existingContext } = {}) {
+    const context = existingContext || await browser.newContext({ viewport: { width: 1440, height: 1000 }, ...(timezoneId ? { timezoneId } : {}) });
+    if (!existingContext) await context.route('https://fonts.googleapis.com/**', route => route.abort());
     const page = await context.newPage();
     if (now) await page.clock.setFixedTime(new Date(now));
     const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -142,6 +142,20 @@ async function fillApi(page, connection = api) {
   await page.locator('#trendModel').fill(connection.model);
 }
 
+async function assertApi(page, connection = api) {
+  assert.equal(await page.locator('#trendBaseUrl').inputValue(), connection.baseUrl);
+  assert.equal(await page.locator('#trendApiKey').inputValue(), connection.apiKey);
+  assert.equal(await page.locator('#trendModel').inputValue(), connection.model);
+}
+
+function assertDedicatedCredentialStorage(stored, connection = api) {
+  const { 'rp-trend-api': savedApi, ...otherLocal } = stored.local;
+  assert.deepEqual(JSON.parse(savedApi), connection);
+  const otherStorage = JSON.stringify({ local: otherLocal, session: stored.session, records: stored.records });
+  assert.ok(!otherStorage.includes(connection.apiKey), 'the key is saved only in the dedicated API configuration');
+  assert.ok(!otherStorage.includes(connection.baseUrl), 'report caches and session storage contain no endpoint credentials');
+}
+
 async function storageContents(page) {
   return page.evaluate(async () => {
     const records = [];
@@ -167,6 +181,75 @@ async function storageContents(page) {
     return { local: { ...localStorage }, session: { ...sessionStorage }, records };
   });
 }
+
+test('Vercel browser: API settings survive reopening, synchronize tabs and keep a cleared key cleared', { timeout: 60000 }, async t => {
+  let modelCalls = 0;
+  const { newPage } = await setup(t, (_request, response) => { modelCalls++; response.sendStatus(500); });
+  const first = await newPage();
+  const posts = [];
+  first.context.on('request', request => { if (request.method() === 'POST') posts.push(request.url()); });
+  await fillApi(first.page);
+  assertDedicatedCredentialStorage(await storageContents(first.page));
+  await first.page.close();
+
+  const reopened = await newPage({ context: first.context });
+  await assertApi(reopened.page);
+  assert.equal(await reopened.page.locator('#analyzeConcerns').isDisabled(), false);
+  const secondTab = await newPage({ context: first.context });
+  await assertApi(secondTab.page);
+  const nextApi = { ...api, baseUrl: 'https://another.example.com/v1', model: 'updated-model' };
+  await fillApi(reopened.page, nextApi);
+  await secondTab.page.waitForFunction(expected => document.querySelector('#trendBaseUrl').value === expected.baseUrl
+    && document.querySelector('#trendModel').value === expected.model, nextApi);
+  await assertApi(secondTab.page, nextApi);
+
+  await reopened.page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })));
+  assert.equal(await reopened.page.locator('#trendApiKey').inputValue(), '');
+  assertDedicatedCredentialStorage(await storageContents(reopened.page), nextApi);
+  await reopened.page.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+  await assertApi(reopened.page, nextApi);
+
+  await reopened.page.locator('#clearTrendApi').click();
+  await secondTab.page.waitForFunction(() => document.querySelector('#trendApiKey').value === '');
+  for (const current of [reopened.page, secondTab.page]) {
+    await assertApi(current, { ...nextApi, apiKey: '' });
+    assert.equal(await current.locator('#analyzeConcerns').isDisabled(), true);
+    assert.equal(await current.locator('#checkTrendCache').isDisabled(), true);
+    const stored = await storageContents(current);
+    const config = JSON.parse(stored.local['rp-trend-api']);
+    assert.equal(config.baseUrl, nextApi.baseUrl);
+    assert.equal(config.model, nextApi.model);
+    assert.ok(!config.apiKey);
+    assert.ok(!JSON.stringify(stored).includes(api.apiKey), 'clearing removes the key from persistent storage');
+  }
+  await reopened.page.reload();
+  await reopened.page.waitForFunction(() => document.querySelectorAll('.field-card').length === 15);
+  await assertApi(reopened.page, { ...nextApi, apiKey: '' });
+  assert.equal(await reopened.page.locator('#analyzeConcerns').isDisabled(), true);
+  assert.equal(modelCalls, 0);
+  assert.deepEqual(posts, [], 'typing, reopening, tab synchronization and restoring pages must not submit credentials');
+  assert.deepEqual([...first.errors, ...reopened.errors, ...secondTab.errors], []);
+});
+
+test('Vercel browser: unavailable API storage leaves settings usable and reports that they were not saved', { timeout: 60000 }, async t => {
+  let modelCalls = 0;
+  const { newPage } = await setup(t, (_request, response) => { modelCalls++; response.sendStatus(500); });
+  const { page, errors } = await newPage();
+  await page.evaluate(() => {
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'rp-trend-api') throw new DOMException('Storage quota exceeded', 'QuotaExceededError');
+      return originalSetItem.call(this, key, value);
+    };
+  });
+  await fillApi(page);
+  await assertApi(page);
+  assert.equal(await page.locator('#analyzeConcerns').isDisabled(), false);
+  assert.match(await page.locator('#trendApiStatus').innerText(), /未能|无法|失败/);
+  assert.equal(await page.evaluate(() => localStorage.getItem('rp-trend-api')), null);
+  assert.equal(modelCalls, 0);
+  assert.deepEqual(errors, []);
+});
 
 test('Vercel browser: own API, IndexedDB cache, scope reuse and isolated visitor preferences', { timeout: 90000 }, async t => {
   const requests = [], extractionTitles = [];
@@ -202,15 +285,13 @@ test('Vercel browser: own API, IndexedDB cache, scope reuse and isolated visitor
   assert.equal(stored.records.filter(row => row.key.startsWith('paper:')).length, 2);
   assert.equal(stored.records.filter(row => row.key.startsWith('report:')).length, 1);
   assert.ok(stored.records.every(row => /^(paper|report):[a-f0-9]{64}$/.test(row.key)));
-  assert.ok(!JSON.stringify(stored).includes(api.apiKey), 'no API key in stored values or IndexedDB keys');
-  assert.ok(!JSON.stringify(stored).includes(api.baseUrl), 'the base URL is not stored in plaintext');
+  assertDedicatedCredentialStorage(stored);
   await page.reload();
   await page.waitForFunction(() => document.querySelector('#trendMajor').value === 'quantum');
-  assert.equal(await page.locator('#trendApiKey').inputValue(), '');
+  await assertApi(page);
   assert.equal(await page.locator('#questions .concern-question').count(), 0);
-  assert.equal(await page.locator('#analyzeConcerns').isDisabled(), true);
+  assert.equal(await page.locator('#analyzeConcerns').isDisabled(), false);
   assert.equal(requests.length, 2);
-  await fillApi(page);
   await page.locator('#checkTrendCache').click();
   await page.waitForSelector('#questions .concern-question');
   assert.equal(requests.length, 2, 'explicit cache restore makes no model calls');
@@ -232,6 +313,7 @@ test('Vercel browser: own API, IndexedDB cache, scope reuse and isolated visitor
   assert.ok((await page.locator('#rankPersistence').innerText()).includes('保存在当前浏览器'));
   const second = await newPage();
   assert.equal(await second.page.locator('#trendApiKey').inputValue(), '');
+  assert.equal(await second.page.evaluate(() => localStorage.getItem('rp-trend-api')), null);
   assert.equal(await second.page.locator('#trendMajor').inputValue(), '');
   await fillApi(second.page);
   await second.page.locator('#checkTrendCache').click();
@@ -286,8 +368,7 @@ test('Vercel browser: malformed synthesis preserves notes and an oversized retry
 
   await page.reload();
   await page.waitForFunction(() => document.querySelector('#trendMajor').value === 'quantum');
-  assert.equal(await page.locator('#trendApiKey').inputValue(), '');
-  await fillApi(page);
+  await assertApi(page);
   await page.locator('#checkTrendCache').click();
   await page.waitForFunction(() => document.querySelector('#concernIncremental').textContent.includes('本次可复用 2 篇'));
   assert.equal(requests.length, 2, 'reloading and checking retained notes do not invoke the model');
@@ -302,7 +383,7 @@ test('Vercel browser: malformed synthesis preserves notes and an oversized retry
   const afterRetry = await storageContents(page);
   assert.deepEqual(afterRetry.records.filter(row => row.key.startsWith('paper:')), savedNotes);
   assert.equal(afterRetry.records.filter(row => row.key.startsWith('report:')).length, 1);
-  assert.ok(!JSON.stringify(afterRetry).includes(api.apiKey));
+  assertDedicatedCredentialStorage(afterRetry);
   assert.deepEqual(errors, []);
 });
 
@@ -335,7 +416,8 @@ test('Vercel browser: clearing an in-flight key stops later calls and a new key 
   await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('分析完成'));
   assert.equal(requests.length, 3);
   assert.deepEqual(requests.slice(1).map(request => request.api.apiKey), [nextApi.apiKey, nextApi.apiKey]);
-  const stored = JSON.stringify(await storageContents(page));
-  assert.ok(!stored.includes(api.apiKey) && !stored.includes(nextApi.apiKey));
+  const stored = await storageContents(page);
+  assert.ok(!JSON.stringify(stored).includes(api.apiKey), 'the cleared key must be removed from all storage');
+  assertDedicatedCredentialStorage(stored, nextApi);
   assert.deepEqual(errors, []);
 });

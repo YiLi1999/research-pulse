@@ -34,7 +34,7 @@ docker compose --env-file deploy/server.env -f compose.yaml -f deploy/compose.ht
 
 分享 HTTPS 地址。朋友可以直接搜索和筛选论文；进入趋势分析后，填写服务商提供的 OpenAI-compatible Chat Completions Base URL、自己的 API Key 和模型 ID，再点击分析。Base URL 应类似 `https://api.example.com/v1`，不要填写完整的 `/chat/completions` 地址。
 
-API Key 会经 HTTPS 交给你的服务器，由服务器临时代为请求指定提供商；应用不将密钥写入浏览器持久存储、磁盘缓存或日志，刷新/关闭页面后需重新输入。分析使用访客的模型额度，不回退使用站长的 `.env`、API Key 或 Codex 登录。应用允许公网 HTTPS API 地址；内网 API、HTTP 地址及需要特殊协议的接口不适用。
+API Key 会经 HTTPS 交给你的服务器，由服务器临时代为请求指定提供商；API 地址、API Key 和模型名称自动保存在当前浏览器的本站 localStorage，刷新/重新打开时自动填入，不自动调用模型；点击“清除 API Key”会删除保存的密钥并保留地址和模型。应用不将密钥写入服务器磁盘缓存或日志。分析使用访客的模型额度，不回退使用站长的 `.env`、API Key 或 Codex 登录。应用允许公网 HTTPS API 地址；内网 API、HTTP 地址及需要特殊协议的接口不适用。
 
 访客的关键词排名和分析任务按浏览器 Cookie 分开。同一浏览器保留 Cookie 时可继续使用自己的设置与缓存；更换浏览器或清除 Cookie 会产生新的访客身份。分析结果和论文缓存会保存在服务器数据卷，API Key 不保存在其中。
 

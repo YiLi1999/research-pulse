@@ -15,7 +15,7 @@ async function enterApi(page, value = visitorApi) {
   await page.locator('#trendModel').fill(value.model);
 }
 
-test('browser: visitor API is explicit and ephemeral; field counts and incremental cache remain available', { timeout: 60000 }, async t => {
+test('browser: visitor API settings persist locally; field counts and incremental cache remain available', { timeout: 60000 }, async t => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'rp-overview-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const papers = [
@@ -65,12 +65,15 @@ test('browser: visitor API is explicit and ephemeral; field counts and increment
   assert.equal(extractionPapers.length, 2);
   assert.ok((await page.locator('#concernIncremental').innerText()).includes('本次可复用 2 篇'));
   const before = calls;
+  const postsBeforeReload = requests.filter(request => request.method === 'POST').length;
   await page.reload();
   await page.waitForFunction(() => document.querySelector('#trendMajor').value === 'quantum');
-  assert.equal(await page.locator('#trendApiKey').inputValue(), '');
+  assert.equal(await page.locator('#trendBaseUrl').inputValue(), visitorApi.baseUrl);
+  assert.equal(await page.locator('#trendApiKey').inputValue(), visitorApi.apiKey);
+  assert.equal(await page.locator('#trendModel').inputValue(), visitorApi.model);
   assert.equal(await page.locator('#questions .concern-question').count(), 0);
-  assert.equal(await page.locator('#analyzeConcerns').isDisabled(), true);
-  await enterApi(page);
+  assert.equal(await page.locator('#analyzeConcerns').isDisabled(), false);
+  assert.equal(requests.filter(request => request.method === 'POST').length, postsBeforeReload, 'restoring saved settings does not send them');
   await page.locator('#checkTrendCache').click();
   await page.waitForSelector('#questions .concern-question');
   assert.equal(calls, before);
@@ -78,15 +81,17 @@ test('browser: visitor API is explicit and ephemeral; field counts and increment
   papers.push({ id: 'a-new', title: 'Quantum computer control', abstract: 'Quantum error correction with new gates.', date: '2026-09-01' });
   await page.reload();
   await page.waitForFunction(() => document.querySelector('#trendMajor').value === 'quantum');
-  await enterApi(page);
   await page.locator('#checkTrendCache').click();
   await page.waitForFunction(() => document.querySelector('#concernIncremental').textContent.includes('变化的 1 篇'));
   await page.locator('#analyzeConcerns').click();
   await page.waitForFunction(() => document.querySelector('#concernStatus').textContent.startsWith('分析完成'));
   assert.equal(extractionPapers.length, 3, 'only the added paper is sent for extraction');
   assert.ok((await page.locator('#questions').innerText()).includes('复用 2 篇 · 新分析 1 篇'));
-  const storage = await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }));
-  assert.ok(!storage.includes(visitorApi.apiKey) && !storage.includes(visitorApi.baseUrl) && !storage.includes(visitorApi.model));
+  const storage = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }));
+  const { 'rp-trend-api': savedApi, ...otherLocal } = storage.local;
+  assert.deepEqual(JSON.parse(savedApi), visitorApi);
+  const otherStorage = JSON.stringify({ local: otherLocal, session: storage.session });
+  assert.ok(!otherStorage.includes(visitorApi.apiKey) && !otherStorage.includes(visitorApi.baseUrl) && !otherStorage.includes(visitorApi.model));
   assert.ok(requests.every(request => !request.url.includes(visitorApi.apiKey)), 'API keys never enter GET URLs');
   const starts = requests.filter(request => request.url.endsWith('/api/trends/analyze'));
   assert.equal(starts.length, 2);
@@ -97,6 +102,13 @@ test('browser: visitor API is explicit and ephemeral; field counts and increment
   assert.equal(await page.locator('#trendApiKey').inputValue(), '');
   assert.equal(await page.locator('#analyzeConcerns').isDisabled(), true);
   assert.equal(await page.locator('#checkTrendCache').isDisabled(), true);
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('#trendMajor').value === 'quantum');
+  assert.equal(await page.locator('#trendBaseUrl').inputValue(), visitorApi.baseUrl);
+  assert.equal(await page.locator('#trendApiKey').inputValue(), '');
+  assert.equal(await page.locator('#trendModel').inputValue(), 'another-model');
+  assert.equal(await page.locator('#analyzeConcerns').isDisabled(), true);
+  assert.ok(!(await page.evaluate(() => localStorage.getItem('rp-trend-api'))).includes(visitorApi.apiKey));
   await enterApi(page, { ...visitorApi, baseUrl: 'http://api.example.com/v1' });
   assert.equal(await page.locator('#analyzeConcerns').isDisabled(), true, 'plain HTTP endpoints are not accepted');
   await enterApi(page);

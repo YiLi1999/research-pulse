@@ -142,7 +142,7 @@ export function createVisitorClient({ fetch: network = globalThis.fetch.bind(glo
       } else if (url.pathname === "/api/trends/analyze" && method === "POST") result = await start(body, init.signal);
       else if (url.pathname.startsWith("/api/trends/jobs/")) {
         const job = jobs.get(decodeURIComponent(url.pathname.split("/").at(-1)));
-        if (!job) throw Object.assign(new Error("页面已刷新或任务不存在，请重新输入 API 后检查缓存。"), { statusCode: 404 });
+        if (!job) throw Object.assign(new Error("页面已刷新或任务不存在，请使用已保存的 API 配置检查缓存。"), { statusCode: 404 });
         result = snapshot(job);
       } else throw Object.assign(new Error("接口不存在。"), { statusCode: 404 });
       return Response.json(result, { status: result.status === "running" ? 202 : 200 });
