@@ -1,27 +1,10 @@
-import { DateTime } from "luxon";
+import { selectPapers } from "../web/public/paperSelection.js";
 import { researchFields, classifyPaper, validateScope } from "./researchFields.js";
 
 export function prepareConcerns(papers, input = {}, { now = new Date(), timezone = "Asia/Shanghai" } = {}) {
   const scope = validateScope(input);
-  const end = DateTime.fromJSDate(now, { zone: timezone });
-  const start = end.startOf("day").minus({ days: 6 });
-  let missingDateCount = 0;
-  const recent = papers.filter(paper => {
-    const date = DateTime.fromISO(paper.date || paper.submittedAt || "", { zone: timezone });
-    if (!date.isValid) { missingDateCount++; return false; }
-    return date >= start && date <= end;
-  });
-  // Collapse versions and copies from different feeds. Prefer the fullest abstract.
-  const seen = new Set();
-  const unique = recent.slice().sort((a, b) => (b.abstract?.length || 0) - (a.abstract?.length || 0)).filter(paper => {
-    const doi = (paper.doi || "").toLowerCase().replace(/^https?:\/\/(?:dx\.)?doi\.org\//, "").trim();
-    const id = (paper.id || "").replace(/v\d+$/, "");
-    const title = (paper.title || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-    const keys = [doi && `doi:${doi}`, id && `id:${id}`, title && `title:${title}`].filter(Boolean);
-    const duplicate = keys.some(key => seen.has(key));
-    keys.forEach(key => seen.add(key));
-    return !duplicate;
-  }).sort((a, b) => String(a.id || a.title).localeCompare(String(b.id || b.title)));
+  const selection = selectPapers(papers, { now, timezone });
+  const unique = selection.papers.slice().sort((a, b) => String(a.id || a.title).localeCompare(String(b.id || b.title)));
   const classified = unique.map(paper => ({ paper, fields: classifyPaper(paper) }));
   const selected = classified.filter(({ fields }) => !scope.majorField || fields.some(field =>
     field.id === scope.majorField && (!scope.minorField || field.children.includes(scope.minorField))));
@@ -29,7 +12,7 @@ export function prepareConcerns(papers, input = {}, { now = new Date(), timezone
   selected.forEach(({ paper }) => { const source = paper.source || "unknown"; sourceCounts[source] = (sourceCounts[source] || 0) + 1; });
   return {
     scope,
-    window: { days: 7, start: start.toISODate(), end: end.toISODate(), asOf: end.toISO(), timezone },
+    window: selection.window,
     papers: selected.map(({ paper }, index) => ({ ...paper, ref: `p${index + 1}` })),
     catalog: researchFields.map(field => ({
       id: field.id, label: field.label,
@@ -41,7 +24,7 @@ export function prepareConcerns(papers, input = {}, { now = new Date(), timezone
       storedCount: papers.length, recentCount: unique.length, selectedCount: selected.length,
       classifiedCount: classified.filter(row => row.fields.length).length,
       unclassifiedCount: classified.filter(row => !row.fields.length).length,
-      duplicateCount: recent.length - unique.length, missingDateCount,
+      duplicateCount: selection.duplicateCount, missingDateCount: selection.missingDateCount,
       abstractCount: selected.filter(({ paper }) => paper.abstract?.trim()).length,
       sourceCounts
     }

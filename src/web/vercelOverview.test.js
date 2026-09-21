@@ -18,7 +18,7 @@ function modelAnswer(body) {
     : { summary: '依据当前论文汇总的研究问题。', questions: [{ question: '如何提高实验与计算精度？', focus: '结合逐篇证据。', groupIds: input.candidates.map(candidate => candidate.id) }] };
 }
 
-async function setup(t, chat) {
+async function setup(t, chat, { papers: inputPapers, now } = {}) {
   const { build } = await import('esbuild');
   const directory = await mkdtemp(path.join(os.tmpdir(), 'rp-vercel-browser-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
@@ -27,16 +27,17 @@ async function setup(t, chat) {
     bundle: true, platform: 'browser', format: 'esm', target: 'es2022', logLevel: 'silent' });
   const index = (await readFile(path.join(publicDirectory, 'index.html'), 'utf8'))
     .replace('<head>', '<head><meta name="rp-runtime" content="vercel">');
-  const date = new Date(Date.now() - 3600000).toISOString();
-  const papers = [
+  const date = new Date((now ? new Date(now).getTime() : Date.now()) - 3600000).toISOString();
+  const papers = inputPapers || [
     { id: 'q1', title: 'Quantum computing with qubits', abstract: 'Entanglement and error correction.', date, source: 'arXiv' },
     { id: 'q2', title: 'Quantum algorithms with logical qubits', abstract: 'Fault tolerant quantum computing.', date, source: 'arXiv' },
     { id: 'a1', title: 'Galaxies and cosmic expansion', abstract: 'Astrophysics and cosmology with stars.', date, source: 'arXiv' }
   ];
+  let dashboard = { papers, config: { timezone: 'Asia/Shanghai' }, state: { lastRefreshAt: date } };
   const app = express(); app.use(express.json({ limit: '2mb' }));
   app.get('/', (_request, response) => response.type('html').send(index));
   app.get('/visitorClient.js', (_request, response) => response.sendFile(bundle));
-  app.get('/data/dashboard.json', (_request, response) => response.json({ papers, config: { timezone: 'Asia/Shanghai' }, state: { lastRefreshAt: date } }));
+  app.get('/data/dashboard.json', (_request, response) => response.json(dashboard));
   app.post('/api/chat', chat);
   app.use(express.static(publicDirectory));
   const server = app.listen(0, '127.0.0.1');
@@ -44,17 +45,96 @@ async function setup(t, chat) {
   await once(server, 'listening');
   const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
   const address = `http://127.0.0.1:${server.address().port}`;
-  async function newPage() {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  async function newPage({ timezoneId, view = 'overview' } = {}) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, ...(timezoneId ? { timezoneId } : {}) });
     await context.route('https://fonts.googleapis.com/**', route => route.abort());
     const page = await context.newPage();
+    if (now) await page.clock.setFixedTime(new Date(now));
     const errors = []; page.on('pageerror', error => errors.push(error.message));
-    await page.goto(`${address}/?view=overview`);
-    await page.waitForFunction(() => document.querySelectorAll('.field-card').length === 15);
+    await page.goto(`${address}/?view=${view}`);
+    await page.waitForFunction(() => document.querySelectorAll('.field-card').length === 15
+      && /^\d+$/.test(document.querySelector('#paperCount').textContent));
     return { page, context, errors };
   }
-  return { browser, newPage, papers, address };
+  function setDataset(nextPapers, lastRefreshAt = date) {
+    dashboard = { ...dashboard, papers: nextPapers, state: { lastRefreshAt } };
+  }
+  return { browser, newPage, papers, address, setDataset };
 }
+
+async function waitForPaperCounts(page, count) {
+  await page.waitForFunction(expected => Number(document.querySelector('#paperCount').textContent) === expected
+    && parseInt(document.querySelector('.field-card[data-field=""] strong')?.textContent, 10) === expected, count);
+}
+
+test('Vercel browser: latest papers and trends share the site calendar window after ranking changes', { timeout: 60000 }, async t => {
+  const now = '2026-09-20T16:30:00.000Z'; // September 21, 00:30 in the configured site timezone.
+  const paper = (id, date, extra = {}) => ({ id, title: `Quantum ${id}`, abstract: 'Quantum computing.', source: 'arXiv', date, ...extra });
+  const papers = [
+    paper('window-start', '2026-09-14T16:00:00.000Z'),
+    paper('date-only-today', '2026-09-21'),
+    paper('site-local-time', '2026-09-15T00:05:00'),
+    paper('submitted-fallback', undefined, { submittedAt: '2026-09-19T02:00:00.000Z' }),
+    paper('date-only-today', '2026-09-21'),
+    paper('just-before-window', '2026-09-14T15:59:59.999Z'),
+    paper('earlier-this-month', '2026-09-01T10:00:00.000Z'),
+    paper('archive', '1980-01-01'),
+    paper('later-today', '2026-09-20T16:31:00.000Z'),
+    paper('tomorrow', '2026-09-22'),
+    paper('missing-date', undefined),
+    paper('invalid-date', 'not-a-date')
+  ];
+  let modelCalls = 0;
+  const { newPage } = await setup(t, (_request, response) => { modelCalls++; response.sendStatus(500); }, { papers, now });
+  for (const timezoneId of ['Asia/Shanghai', 'America/Los_Angeles']) {
+    const { page, context, errors } = await newPage({ timezoneId, view: 'papers' });
+    await waitForPaperCounts(page, 4);
+    assert.equal(await page.locator('#days').inputValue(), '7');
+    assert.equal(await page.locator('#journal').inputValue(), '');
+    assert.deepEqual((await page.locator('#paperList h3').allTextContents()).sort(), [
+      'Quantum date-only-today', 'Quantum site-local-time', 'Quantum submitted-fallback', 'Quantum window-start'
+    ]);
+    assert.match(await page.locator('#fieldOverviewSummary').textContent(), /2026-09-15 — 2026-09-21/);
+    assert.match(await page.locator('#concernScope').textContent(), /Asia\/Shanghai/);
+
+    await page.locator('#keywordInput').fill('window-start');
+    await page.locator('#keywordWeight').fill('17');
+    await page.locator('#keywordAdd').click();
+    await page.waitForFunction(() => document.querySelector('#rankSaveStatus').dataset.state === 'saved'
+      && localStorage.getItem('rp-visitor-weights')?.includes('window-start'));
+    await waitForPaperCounts(page, 4);
+    assert.equal(await page.locator('#paperList h3').first().innerText(), 'Quantum window-start');
+
+    await page.locator('#days').selectOption('30');
+    assert.equal(await page.locator('#paperCount').innerText(), '6');
+    await page.locator('#days').selectOption('9999');
+    assert.equal(await page.locator('#paperCount').innerText(), '11', 'All keeps the complete deduplicated archive');
+    await page.locator('#clear').click();
+    await waitForPaperCounts(page, 4);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+  assert.equal(modelCalls, 0, 'browsing counts and saving ranking weights never invoke AI');
+});
+
+test('Vercel browser: refresh replaces the snapshot used by both paper counts', { timeout: 60000 }, async t => {
+  const now = '2026-09-20T16:30:00.000Z';
+  const paper = id => ({ id, title: `Quantum ${id}`, date: '2026-09-21', source: 'arXiv' });
+  const { newPage, setDataset } = await setup(t, (_request, response) => response.sendStatus(500), {
+    now, papers: [paper('initial')]
+  });
+  const { page, errors } = await newPage({ timezoneId: 'America/Los_Angeles', view: 'papers' });
+  await waitForPaperCounts(page, 1);
+  setDataset([paper('replacement-one'), paper('replacement-two')], now);
+  await page.locator('#refresh').click();
+  await waitForPaperCounts(page, 2);
+  assert.deepEqual((await page.locator('#paperList h3').allTextContents()).sort(), [
+    'Quantum replacement-one', 'Quantum replacement-two'
+  ]);
+  await page.locator('.nav[data-view="overview"]').click();
+  assert.match(await page.locator('#concernScope').innerText(), /当前匹配 2 篇 \/ 近7天共 2 篇/);
+  assert.deepEqual(errors, []);
+});
 
 async function fillApi(page, connection = api) {
   await page.locator('#trendBaseUrl').fill(connection.baseUrl);
