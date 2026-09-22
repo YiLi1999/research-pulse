@@ -2,7 +2,9 @@ name: Refresh public papers
 
 on:
   schedule:
-    - cron: '23 1 * * *'
+    # arXiv announces Sun-Thu at 20:00 US Eastern; fetch 10 minutes later.
+    - cron: '10 20 * * 0-4'
+      timezone: 'America/New_York'
   workflow_dispatch:
 
 permissions:

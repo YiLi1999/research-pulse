@@ -15,7 +15,7 @@ Vercel Hobby 面向个人、非商业项目，包含免费额度但不是无限�
 
 ## 开启每日更新
 
-工作流文件是 `.github/workflows/refresh-papers.yml`，默认每天北京时间 **09:23** 运行一次，也可手动运行。它先用上次公开快照恢复缓存，再抓取公开论文，最后只提交剔除私人内容后的快照；不执行 AI 分析，不需要模型密钥。
+工作流文件是 `.github/workflows/refresh-papers.yml`，默认在 [arXiv 常规公布时间](https://info.arxiv.org/help/availability.html)后 **10 分钟**运行：美国东部时间周日至周四 **20:10**，对应北京时间周一至周五夏令时 **08:10**、冬令时 **09:10**。工作流使用 `America/New_York` 时区自动适配夏令时，也可手动运行。此计划按常规公布时间触发，不检测 arXiv 的节假日或临时延迟。它先用上次公开快照恢复缓存，再抓取公开论文，最后只提交剔除私人内容后的快照；不执行 AI 分析，不需要模型密钥。
 
 1. 在 GitHub 仓库 **Settings → Actions → General** 中允许 Actions，确保 Workflow permissions 允许 **Read and write permissions**，以便每日更新文件。如果你启用了分支保护，应允许这个维护工作流提交，或改为人工合并更新。
 2. 在 **Settings → Secrets and variables → Actions → Variables** 新建两个普通仓库变量：
